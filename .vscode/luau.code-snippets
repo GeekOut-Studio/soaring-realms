@@ -1,0 +1,58 @@
+{
+  "Class": {
+    "prefix": ["class"],
+    "body": [
+      "local $TM_FILENAME_BASE = {}",
+      "$TM_FILENAME_BASE.__index = $TM_FILENAME_BASE",
+      "",
+      "function $TM_FILENAME_BASE.new()",
+      "\tlocal self = setmetatable({}, $TM_FILENAME_BASE)",
+      "\treturn self",
+      "end",
+      "",
+      "function $TM_FILENAME_BASE:Destroy()",
+      "\t",
+      "end",
+      "",
+      "return $TM_FILENAME_BASE",
+      ""
+    ],
+    "description": "Lua Class"
+  },
+  "Component": {
+    "prefix": ["component"],
+    "body": [
+      "local ReplicatedStorage = game:GetService(\"ReplicatedStorage\")",
+      "",
+      "local React = require(ReplicatedStorage.Packages.React)",
+      "local Sift = require(ReplicatedStorage.Packages.Sift)",
+      "",
+      "local e = React.createElement",
+      "local merge = Sift.Dictionary.merge",
+      "",
+      "local function $TM_FILENAME_BASE(props: {})",
+      "\t$0",
+      "end",
+      "",
+      "return $TM_FILENAME_BASE"
+    ]
+  },
+  "ServerOrClient": {
+    "prefix": ["server", "client"],
+    "body": [
+      "local $TM_FILENAME_BASE = {",
+      "\tPriority = 0,",
+      "}",
+      "",
+      "function $TM_FILENAME_BASE:InitializeBlocking()",
+      "\t$0",
+      "end",
+      "",
+      "function $TM_FILENAME_BASE:Start()",
+      "\t",
+      "end",
+      "",
+      "return $TM_FILENAME_BASE"
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "name": "SoaringRealms",
+  "tree": {
+    "$className": "DataModel",
+
+    "ServerScriptService": {
+      "Server": {
+        "$path": "src/server"
+      }
+    },
+
+    "ReplicatedStorage": {
+      "Shared": {
+        "$path": "src/shared"
+      },
+      "Packages": {
+        "$path": "Packages"
+      }
+    },
+
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "Client": {
+          "$path": "src/client"
+        }
+      }
+    },
+
+    "ServerStorage": {
+      "Bootstrapper": {
+        "$className": "Folder",
+        "MainModule": {
+          "$path": "src/Bootstrapper.luau"
+        }
+      },
+      "Plugins": {
+        "$className": "Folder",
+        "$path": "Plugins"
+      }
+    }
+  }
+}

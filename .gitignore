@@ -1,0 +1,10 @@
+# Project place file
+/SoaringRealms.rbxlx
+
+# Roblox Studio lock files
+/*.rbxlx.lock
+/*.rbxl.lock
+
+sourcemap.json
+Packages
+wally.lock

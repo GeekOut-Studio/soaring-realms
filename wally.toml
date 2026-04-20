@@ -1,0 +1,20 @@
+[package]
+name = "geekout-studio/soaring-realms"
+version = "0.1.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+
+[dependencies]
+React = "jsdotlua/react@17.2.1"
+ReactRoblox = "jsdotlua/react-roblox@17.2.1"
+Flipper = "reselim/flipper@2.0.0"
+Signal = "data-oriented-house/lemonsignal@1.11.0"
+Observers = "sleitnick/observers@0.3.4"
+Comm = "sleitnick/comm@1.0.1"
+Trove = "sleitnick/trove@1.5.1"
+Promise = "evaera/promise@4.0.0"
+Sift = "csqrl/sift@0.0.11"
+Component = "sleitnick/component@2.4.8"
+t = "osyrisrblx/t@3.1.1"
+Cmdr = "evaera/cmdr@1.12.0"
+Lyra = "paradoxum-games/lyra@0.6.0"

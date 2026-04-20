@@ -1,5 +1,0 @@
-{
-  "permissions": {
-    "allow": ["WebSearch", "Bash(rokit*)", "Bash(wally*)", "Bash(rojo*)"]
-  }
-}

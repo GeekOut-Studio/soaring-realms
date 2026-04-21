@@ -5,19 +5,19 @@ local Observing = require(ReplicatedStorage.Shared.Observing)
 
 local TeleportClient = {}
 
-local isTeleporting
+local isTeleportingProperty
 
 function TeleportClient.Init()
 	local clientComm = Comm.ClientComm.new(ReplicatedStorage, false, "Teleport")
-	isTeleporting = clientComm:GetProperty("IsTeleporting")
+	isTeleportingProperty = clientComm:GetProperty("IsTeleporting")
 end
 
 function TeleportClient.IsTeleporting(): boolean
-	return isTeleporting:Get()
+	return isTeleportingProperty:Get()
 end
 
 function TeleportClient.ObserveIsTeleporting(callback: (isTeleporting: boolean) -> (() -> ())?)
-	return Observing.observeCommProperty(isTeleporting, callback)
+	return Observing.observeCommProperty(isTeleportingProperty, callback)
 end
 
 return TeleportClient

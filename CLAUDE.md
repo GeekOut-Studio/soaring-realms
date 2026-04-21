@@ -1,4 +1,4 @@
 # Rules
 
 - Run `stylua <file>` on every modified Lua or Luau file.
-- Use PascalCase for module-level names, fields, and methods. Use camelCase for local variables within a scope. No underscore prefixes for private members.
+- Use PascalCase for module tables, their public methods, and exported names. Use camelCase for private module-level functions and local variables within a scope. No underscore prefixes for private members.

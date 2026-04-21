@@ -9,3 +9,7 @@ DownloadClient.Init()
 GuiClient.Init()
 TeleportClient.Init()
 TestClient.Init()
+
+for _, component in ReplicatedStorage.Shared.Components:GetChildren() do
+	require(component)
+end

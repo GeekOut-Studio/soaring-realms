@@ -3,11 +3,16 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 local Workspace = game:GetService("Workspace")
 
+local Comm = require(ReplicatedStorage.Packages.Comm)
 local Component = require(ReplicatedStorage.Packages.Component)
 local IslandDefs = require(ReplicatedStorage.Shared.Defs.IslandDefs)
+local t = require(ReplicatedStorage.Packages.t)
 local TeleportServer = require(ServerScriptService.Server.Servers.TeleportServer)
 
 type IslandKind = IslandDefs.IslandKind
+
+local checkRadius = t.numberPositive
+local checkDestination = t.keyOf(IslandDefs)
 
 local CHARGE_TIME = 5
 local COOLDOWN_TIME = 3
@@ -30,17 +35,30 @@ function IslandTeleporter:Construct()
 	self.StateThread = nil
 	self.Accumulator = 0
 
-	self.Radius = self.Instance:GetAttribute("TeleporterRadius") :: number
-	self.Destination = self.Instance:GetAttribute("TeleporterDestination") :: IslandKind
+	local radius = self.Instance:GetAttribute("TeleporterRadius")
+	local destination = self.Instance:GetAttribute("TeleporterDestination")
+	local name = self.Instance:GetFullName()
+
+	local radiusOk, radiusErr = checkRadius(radius)
+	assert(radiusOk, `{name}: TeleporterRadius - {radiusErr}`)
+
+	local destOk, destErr = checkDestination(destination)
+	assert(destOk, `{name}: TeleporterDestination - {destErr}`)
+
+	self.Radius = radius :: number
+	self.Destination = destination :: IslandKind
 
 	local pivotPos = self.Instance:GetPivot().Position
 	self.ZoneCenter = pivotPos + Vector3.new(0, self.Radius / 2, 0)
-end
 
-function IslandTeleporter:Start() end
+	self.Comm = Comm.ServerComm.new(self.Instance, "IslandTeleporter")
+	self.ChargeStartedSignal = self.Comm:CreateSignal("ChargeStarted")
+	self.ChargeEndedSignal = self.Comm:CreateSignal("ChargeEnded")
+end
 
 function IslandTeleporter:Stop()
 	self:CancelStateThread()
+	self.Comm:Destroy()
 end
 
 function IslandTeleporter:CancelStateThread()
@@ -62,6 +80,7 @@ end
 
 function IslandTeleporter:EnterChargingUp()
 	self.State = State.ChargingUp
+	self.ChargeStartedSignal:FireAll(Workspace:GetServerTimeNow(), CHARGE_TIME)
 	self.StateThread = task.delay(CHARGE_TIME, function()
 		self.StateThread = nil
 		local players = {}
@@ -69,6 +88,7 @@ function IslandTeleporter:EnterChargingUp()
 			table.insert(players, player)
 		end
 		TeleportServer.TeleportToIslandAsync(players, self.Destination)
+		self.ChargeEndedSignal:FireAll()
 		self.PlayersInZone = {}
 		self.State = State.CoolingDown
 		self.StateThread = task.delay(COOLDOWN_TIME, function()
@@ -99,7 +119,7 @@ function IslandTeleporter:HeartbeatUpdate(dt: number)
 	for _, player in Players:GetPlayers() do
 		if self.PlayersInZone[player] == nil then
 			local character = player.Character
-			if character and self:IsInZone(character:GetPivot().Position) then
+			if character ~= nil and self:IsInZone(character:GetPivot().Position) then
 				self.PlayersInZone[player] = true
 			end
 		end
@@ -114,6 +134,7 @@ function IslandTeleporter:HeartbeatUpdate(dt: number)
 	elseif self.State == State.ChargingUp then
 		if isEmpty then
 			self:CancelStateThread()
+			self.ChargeEndedSignal:FireAll()
 			self.State = State.Idle
 		end
 	end

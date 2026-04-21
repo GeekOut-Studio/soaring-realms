@@ -32,7 +32,7 @@ local function resolvePath(path: string): Instance?
 	local current: Instance = ServerStorage.Assets
 	for _, part in parts do
 		local child = current:FindFirstChild(part)
-		if not child then
+		if child == nil then
 			return nil
 		end
 		current = child
@@ -45,7 +45,7 @@ function DownloadServer.Init()
 
 	serverComm:CreateSignal("AcknowledgeAsset"):Connect(function(player: Player, containerName: string)
 		local container = player.PlayerGui:FindFirstChild(containerName)
-		if container then
+		if container ~= nil then
 			container:Destroy()
 		end
 	end)

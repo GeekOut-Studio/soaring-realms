@@ -10,14 +10,14 @@ function Observing.observeCommProperty<T>(
 	local cleanup: Cleanup?
 
 	local connection = property:Observe(function(value: T)
-		if cleanup then
+		if cleanup ~= nil then
 			cleanup()
 		end
 		cleanup = handler(value)
 	end)
 
 	return function()
-		if cleanup then
+		if cleanup ~= nil then
 			cleanup()
 			cleanup = nil
 		end

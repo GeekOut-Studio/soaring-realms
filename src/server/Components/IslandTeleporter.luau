@@ -11,6 +11,7 @@ type IslandKind = IslandDefs.IslandKind
 
 local CHARGE_TIME = 5
 local COOLDOWN_TIME = 3
+local POLL_INTERVAL = 0.1
 
 local State = {
 	Idle = "Idle",
@@ -27,6 +28,7 @@ function IslandTeleporter:Construct()
 	self.State = State.Idle
 	self.PlayersInZone = {}
 	self.StateThread = nil
+	self.Accumulator = 0
 
 	self.Radius = self.Instance:GetAttribute("TeleporterRadius") :: number
 	self.Destination = self.Instance:GetAttribute("TeleporterDestination") :: IslandKind
@@ -42,7 +44,7 @@ function IslandTeleporter:Stop()
 end
 
 function IslandTeleporter:CancelStateThread()
-	if self.StateThread then
+	if self.StateThread ~= nil then
 		task.cancel(self.StateThread)
 		self.StateThread = nil
 	end
@@ -51,22 +53,11 @@ end
 function IslandTeleporter:IsInZone(position: Vector3): boolean
 	local dx = position.X - self.ZoneCenter.X
 	local dz = position.Z - self.ZoneCenter.Z
+	if math.abs(dx) + math.abs(dz) > self.Radius * 2 then
+		return false
+	end
 	return dx * dx + dz * dz <= self.Radius * self.Radius
 		and math.abs(position.Y - self.ZoneCenter.Y) <= self.Radius / 2
-end
-
-function IslandTeleporter:GetPlayersInZone(): { Player }
-	local players = {}
-	for _, player in Players:GetPlayers() do
-		local character = player.Character
-		if character then
-			local position = character:GetPivot().Position
-			if self:IsInZone(position) then
-				table.insert(players, player)
-			end
-		end
-	end
-	return players
 end
 
 function IslandTeleporter:EnterChargingUp()
@@ -87,16 +78,32 @@ function IslandTeleporter:EnterChargingUp()
 	end)
 end
 
-function IslandTeleporter:HeartbeatUpdate()
+function IslandTeleporter:HeartbeatUpdate(dt: number)
 	if self.State == State.CoolingDown then
 		return
 	end
 
-	local newZone = {}
-	for _, player in self:GetPlayersInZone() do
-		newZone[player] = true
+	self.Accumulator += dt
+	if self.Accumulator < POLL_INTERVAL then
+		return
 	end
-	self.PlayersInZone = newZone
+	self.Accumulator = 0
+
+	for player in self.PlayersInZone do
+		local character = player.Character
+		if character == nil or not self:IsInZone(character:GetPivot().Position) then
+			self.PlayersInZone[player] = nil
+		end
+	end
+
+	for _, player in Players:GetPlayers() do
+		if self.PlayersInZone[player] == nil then
+			local character = player.Character
+			if character and self:IsInZone(character:GetPivot().Position) then
+				self.PlayersInZone[player] = true
+			end
+		end
+	end
 
 	local isEmpty = next(self.PlayersInZone) == nil
 

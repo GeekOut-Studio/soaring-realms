@@ -7,6 +7,8 @@ local DownloadClient = {}
 
 local downloadAsync
 local acknowledgeSignal
+local cacheFolder
+local cache = {}
 
 local function waitForLeaf(root: Instance, path: string)
 	local parts = string.split(path, "/")
@@ -20,9 +22,17 @@ function DownloadClient.Init()
 	local clientComm = Comm.ClientComm.new(ReplicatedStorage, false, "Download")
 	downloadAsync = clientComm:GetFunction("DownloadAsync")
 	acknowledgeSignal = clientComm:GetSignal("AcknowledgeAsset")
+
+	cacheFolder = Instance.new("Folder")
+	cacheFolder.Name = "DownloadCache"
+	cacheFolder.Parent = ReplicatedStorage
 end
 
 function DownloadClient.DownloadAsync(path: string): Instance
+	if cache[path] then
+		return cache[path]:Clone()
+	end
+
 	local result = downloadAsync(path)
 	local containerName = result.ContainerName
 	local assetName = result.AssetName
@@ -36,10 +46,11 @@ function DownloadClient.DownloadAsync(path: string): Instance
 		waitForLeaf(asset, leafPath)
 	end
 
-	local clone = asset:Clone()
+	asset.Parent = cacheFolder
+	cache[path] = asset
 	acknowledgeSignal:Fire(containerName)
 
-	return clone
+	return asset:Clone()
 end
 
 return DownloadClient

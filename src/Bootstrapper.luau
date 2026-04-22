@@ -21,7 +21,8 @@ function Bootstrapper.Init()
 	sourceFolder.Packages.Parent = ReplicatedStorage
 	sourceFolder.Assets.Parent = ServerStorage
 
-	-- server-side code
+	-- server-side code; capture helper before the move
+	local earlyHelper = sourceFolder.Server.BootstrapperEarlyPlayerHelper
 	sourceFolder.Server.Parent = ServerScriptService
 
 	-- client-side code
@@ -30,17 +31,24 @@ function Bootstrapper.Init()
 
 	-- account for players that may have already loaded in
 	for _, player in Players:GetChildren() do
-		local playerScripts = player:FindFirstChild("PlayerScripts")
-		if playerScripts == nil then
+		local playerGui = player:FindFirstChild("PlayerGui")
+		if playerGui == nil then
 			continue
 		end
 
-		local existingClient = playerScripts:FindFirstChild("Client")
-		if existingClient ~= nil then
+		if playerGui:FindFirstChild("Client") ~= nil then
 			continue
 		end
 
-		client:Clone().Parent = playerScripts
+		local clientClone = client:Clone()
+		for _, desc in clientClone:GetDescendants() do
+			if desc:IsA("BaseScript") then
+				desc.Enabled = false
+			end
+		end
+		clientClone.Parent = playerGui
+
+		earlyHelper:Clone().Parent = playerGui
 	end
 end
 

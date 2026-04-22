@@ -1,13 +1,49 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Selection = game:GetService("Selection")
+local ServerScriptService = game:GetService("ServerScriptService")
+local ServerStorage = game:GetService("ServerStorage")
+local StarterPlayer = game:GetService("StarterPlayer")
+
 local toolbar = plugin:CreateToolbar("Soaring Realms")
 local packButton = toolbar:CreateButton("Pack", "Pack source into a ServerStorage/Source folder and prompt to save", "")
 
-packButton.Click:Connect(function()
-	local ReplicatedStorage = game:GetService("ReplicatedStorage")
-	local Selection = game:GetService("Selection")
-	local ServerScriptService = game:GetService("ServerScriptService")
-	local ServerStorage = game:GetService("ServerStorage")
-	local StarterPlayer = game:GetService("StarterPlayer")
+local function isValidIdentifier(name: string): boolean
+	return name:match("^[%a_][%w_]*$") ~= nil
+end
 
+local function serializeManifestEntry(instance: Instance, depth: number): string
+	local children = instance:GetChildren()
+	if #children == 0 then
+		return "true"
+	end
+	local indent = string.rep("\t", depth)
+	local lines = { "{" }
+	for _, child in children do
+		local key = if isValidIdentifier(child.Name)
+			then child.Name
+			else '["' .. child.Name:gsub("\\", "\\\\"):gsub('"', '\\"') .. '"]'
+		table.insert(lines, indent .. "\t" .. key .. " = " .. serializeManifestEntry(child, depth + 1) .. ",")
+	end
+	table.insert(lines, indent .. "}")
+	return table.concat(lines, "\n")
+end
+
+local function generateClientManifest(parent: Folder, shared: Folder, packages: Folder)
+	local source = "return {\n"
+		.. "\tShared = "
+		.. serializeManifestEntry(shared, 1)
+		.. ",\n"
+		.. "\tPackages = "
+		.. serializeManifestEntry(packages, 1)
+		.. ",\n}\n"
+
+	local manifest = Instance.new("ModuleScript")
+	manifest.Name = "ClientManifest"
+	manifest.Source = source
+	manifest.Parent = parent
+end
+
+packButton.Click:Connect(function()
 	local existing = ServerStorage:FindFirstChild("Source")
 	if existing then
 		warn("[SoaringRealms Pack] A 'Source' folder already exists in ServerStorage. Remove it first.")
@@ -31,6 +67,8 @@ packButton.Click:Connect(function()
 	packChild(ReplicatedStorage, "Packages")
 	packChild(ServerStorage, "Assets")
 	packChild(StarterPlayer.StarterPlayerScripts, "Client")
+
+	generateClientManifest(sourceFolder.Shared, sourceFolder.Shared, sourceFolder.Packages)
 
 	sourceFolder.Parent = ServerStorage
 

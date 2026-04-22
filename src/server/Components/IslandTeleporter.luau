@@ -11,9 +11,6 @@ local TeleportServer = require(ServerScriptService.Server.Servers.TeleportServer
 
 type IslandKind = IslandDefs.IslandKind
 
-local checkRadius = t.numberPositive
-local checkDestination = t.keyOf(IslandDefs)
-
 local CHARGE_TIME = 5
 local COOLDOWN_TIME = 3
 local POLL_INTERVAL = 0.1
@@ -39,11 +36,8 @@ function IslandTeleporter:Construct()
 	local destination = self.Instance:GetAttribute("TeleporterDestination")
 	local name = self.Instance:GetFullName()
 
-	local radiusOk, radiusErr = checkRadius(radius)
-	assert(radiusOk, `{name}: TeleporterRadius - {radiusErr}`)
-
-	local destOk, destErr = checkDestination(destination)
-	assert(destOk, `{name}: TeleporterDestination - {destErr}`)
+	assert(t.numberPositive(radius), `{name}: bad TeleporterRadius`)
+	assert(t.keyOf(IslandDefs)(destination), `{name}: bad TeleporterDestination`)
 
 	self.Radius = radius :: number
 	self.Destination = destination :: IslandKind

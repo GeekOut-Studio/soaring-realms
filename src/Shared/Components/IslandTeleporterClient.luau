@@ -5,8 +5,7 @@ local Comm = require(ReplicatedStorage.Packages.Comm)
 local Component = require(ReplicatedStorage.Packages.Component)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
-local BLACK = Color3.new(0, 0, 0)
-local PURPLE = Color3.fromRGB(128, 0, 128)
+local RUNE_WAIT_TIMEOUT = 10
 
 local IslandTeleporterClient = Component.new({
 	Tag = "IslandTeleporter",
@@ -17,19 +16,17 @@ function IslandTeleporterClient:Construct()
 	self.Trove = Trove.new()
 	self.ChargeStartTime = nil
 	self.ChargeDuration = nil
-
-	self.Parts = {}
-	if self.Instance:IsA("BasePart") then
-		table.insert(self.Parts, self.Instance)
-	end
-	for _, desc in self.Instance:GetDescendants() do
-		if desc:IsA("BasePart") then
-			table.insert(self.Parts, desc)
-		end
-	end
 end
 
 function IslandTeleporterClient:Start()
+	local name = self.Instance:GetFullName()
+	local rune = self.Instance:WaitForChild("Rune", RUNE_WAIT_TIMEOUT)
+	assert(rune ~= nil, `{name}: Rune did not replicate within {RUNE_WAIT_TIMEOUT}s`)
+	assert(rune:IsA("BasePart"), `{name}: Rune must be a BasePart`)
+	self.Rune = rune
+	self.RuneOriginOffset = self.Instance:GetPivot():ToObjectSpace(rune.CFrame)
+	self.RuneHeight = rune.Size.Y
+
 	local comm = Comm.ClientComm.new(self.Instance, false, "IslandTeleporter")
 	self.Trove:Add(comm)
 
@@ -41,18 +38,12 @@ function IslandTeleporterClient:Start()
 	comm:GetSignal("ChargeEnded"):Connect(function()
 		self.ChargeStartTime = nil
 		self.ChargeDuration = nil
-		self:SetColor(BLACK)
+		self.Rune.CFrame = self.Instance:GetPivot():ToWorldSpace(self.RuneOriginOffset)
 	end)
 end
 
 function IslandTeleporterClient:Stop()
 	self.Trove:Destroy()
-end
-
-function IslandTeleporterClient:SetColor(color: Color3)
-	for _, part in self.Parts do
-		part.Color = color
-	end
 end
 
 function IslandTeleporterClient:RenderSteppedUpdate()
@@ -62,7 +53,8 @@ function IslandTeleporterClient:RenderSteppedUpdate()
 
 	local elapsed = Workspace:GetServerTimeNow() - self.ChargeStartTime
 	local alpha = math.clamp(elapsed / self.ChargeDuration, 0, 1)
-	self:SetColor(BLACK:Lerp(PURPLE, alpha))
+	local baseCFrame = self.Instance:GetPivot():ToWorldSpace(self.RuneOriginOffset)
+	self.Rune.CFrame = baseCFrame * CFrame.new(0, alpha * self.RuneHeight, 0)
 end
 
 return IslandTeleporterClient

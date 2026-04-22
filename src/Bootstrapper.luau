@@ -16,11 +16,15 @@ function Bootstrapper.Init()
 		sourceFolder.Parent = ServerStorage
 	end
 
-	sourceFolder.Server.Parent = ServerScriptService
+	-- all non-executing code
 	sourceFolder.Shared.Parent = ReplicatedStorage
 	sourceFolder.Packages.Parent = ReplicatedStorage
 	sourceFolder.Assets.Parent = ServerStorage
 
+	-- server-side code
+	sourceFolder.Server.Parent = ServerScriptService
+
+	-- client-side code
 	local client = sourceFolder.Client
 	client.Parent = StarterPlayer.StarterPlayerScripts
 

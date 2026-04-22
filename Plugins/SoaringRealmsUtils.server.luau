@@ -68,7 +68,7 @@ packButton.Click:Connect(function()
 	packChild(ServerStorage, "Assets")
 	packChild(StarterPlayer.StarterPlayerScripts, "Client")
 
-	generateClientManifest(sourceFolder.Shared, sourceFolder.Shared, sourceFolder.Packages)
+	generateClientManifest(sourceFolder.Client, sourceFolder.Shared, sourceFolder.Packages)
 
 	sourceFolder.Parent = ServerStorage
 

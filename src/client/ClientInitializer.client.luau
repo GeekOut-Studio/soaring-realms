@@ -1,8 +1,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local sharedFolder = ReplicatedStorage:WaitForChild("Shared")
-local manifestSource = sharedFolder:WaitForChild("ClientManifest") :: ModuleScript
-local ClientManifest = require(manifestSource)
+-- wait for all necessary files
+local ClientManifest = require(script.Parent:WaitForChild("ClientManifest"))
 
 local function waitForManifest(parent: Instance, manifest: { [string]: any })
 	for name, children in manifest do
@@ -15,6 +14,7 @@ end
 
 waitForManifest(ReplicatedStorage, ClientManifest)
 
+-- initialize the client
 local DownloadClient = require(ReplicatedStorage.Shared.Clients.DownloadClient)
 local GuiClient = require(ReplicatedStorage.Shared.Clients.GuiClient)
 local TeleportClient = require(ReplicatedStorage.Shared.Clients.TeleportClient)

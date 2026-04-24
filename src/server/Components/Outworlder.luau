@@ -15,49 +15,49 @@ local Outworlder = Component.new({
 })
 
 function Outworlder:Construct()
-	self.currentAction = nil :: Action?
+	self.CurrentAction = nil :: Action?
 end
 
 function Outworlder:Stop()
-	if self.currentAction ~= nil then
-		self.currentAction:Stop("Interrupted")
-		self.currentAction = nil
+	if self.CurrentAction ~= nil then
+		self.CurrentAction:Stop("Interrupted")
+		self.CurrentAction = nil
 	end
 end
 
 function Outworlder:StartAction(action: Action)
-	if self.currentAction ~= nil then
-		self.currentAction:Stop("Interrupted")
+	if self.CurrentAction ~= nil then
+		self.CurrentAction:Stop("Interrupted")
 	end
-	self.currentAction = action
+	self.CurrentAction = action
 end
 
 function Outworlder:StopCurrentAction(reason: StopReason?)
-	if self.currentAction ~= nil then
-		self.currentAction:Stop(if reason ~= nil then reason else "Interrupted")
-		self.currentAction = nil
+	if self.CurrentAction ~= nil then
+		self.CurrentAction:Stop(if reason ~= nil then reason else "Interrupted")
+		self.CurrentAction = nil
 	end
 end
 
 function Outworlder:AllowsMovement(): boolean
-	if self.currentAction == nil then
+	if self.CurrentAction == nil then
 		return true
 	end
-	return self.currentAction.AllowsMovement
+	return self.CurrentAction.AllowsMovement
 end
 
 function Outworlder:HeartbeatUpdate(dt: number)
-	if self.currentAction == nil then
+	if self.CurrentAction == nil then
 		return
 	end
 
-	local result = self.currentAction:Update(dt)
+	local result = self.CurrentAction:Update(dt)
 	if result == "Complete" then
-		self.currentAction:Stop("Completed")
-		self.currentAction = nil
+		self.CurrentAction:Stop("Completed")
+		self.CurrentAction = nil
 	elseif result == "Fail" then
-		self.currentAction:Stop("Failed")
-		self.currentAction = nil
+		self.CurrentAction:Stop("Failed")
+		self.CurrentAction = nil
 	end
 end
 

@@ -1,3 +1,14 @@
+--[=[
+	@class IslandTeleporter
+	Component placed on teleporter pads in the world. Tracks which players are inside
+	the zone, charges up when occupied, and fires a server teleport when the charge
+	completes. Broadcasts `ChargeStarted` and `ChargeEnded` signals to clients via Comm.
+
+	Reads two instance attributes:
+	- `TeleporterRadius` (number) — radius of the cylindrical trigger zone.
+	- `TeleporterDestination` (IslandKind) — target island.
+]=]
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
@@ -25,6 +36,24 @@ local IslandTeleporter = Component.new({
 	Tag = "IslandTeleporter",
 	Ancestors = { Workspace },
 })
+
+--[=[
+	@prop Radius number
+	@within IslandTeleporter
+	Radius of the cylindrical trigger zone, read from the `TeleporterRadius` attribute.
+]=]
+
+--[=[
+	@prop Destination IslandKind
+	@within IslandTeleporter
+	Target island, read from the `TeleporterDestination` attribute.
+]=]
+
+--[=[
+	@prop State string
+	@within IslandTeleporter
+	Current state of the teleporter: `"Idle"`, `"ChargingUp"`, or `"CoolingDown"`.
+]=]
 
 function IslandTeleporter:Construct()
 	self.State = State.Idle
@@ -55,6 +84,10 @@ function IslandTeleporter:Stop()
 	self.Comm:Destroy()
 end
 
+--[=[
+	Cancels the active state thread (charge or cooldown timer) if one is running.
+	@within IslandTeleporter
+]=]
 function IslandTeleporter:CancelStateThread()
 	if self.StateThread ~= nil then
 		task.cancel(self.StateThread)
@@ -62,6 +95,12 @@ function IslandTeleporter:CancelStateThread()
 	end
 end
 
+--[=[
+	Returns whether `position` is inside this teleporter's cylindrical zone.
+	@within IslandTeleporter
+	@param position Vector3
+	@return boolean
+]=]
 function IslandTeleporter:IsInZone(position: Vector3): boolean
 	local dx = position.X - self.ZoneCenter.X
 	local dz = position.Z - self.ZoneCenter.Z
@@ -72,6 +111,11 @@ function IslandTeleporter:IsInZone(position: Vector3): boolean
 		and math.abs(position.Y - self.ZoneCenter.Y) <= self.Radius / 2
 end
 
+--[=[
+	Transitions to `ChargingUp`, fires `ChargeStarted` to all clients, and schedules
+	the teleport. On completion, transitions to `CoolingDown` then back to `Idle`.
+	@within IslandTeleporter
+]=]
 function IslandTeleporter:EnterChargingUp()
 	self.State = State.ChargingUp
 	self.ChargeStartedSignal:FireAll(Workspace:GetServerTimeNow(), CHARGE_TIME)

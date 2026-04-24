@@ -1,18 +1,32 @@
 --!strict
 
+--[=[
+	@class Outworlder
+	Component attached to player characters in the world. Owns the currently running
+	Action and drives its update loop.
+]=]
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 local Workspace = game:GetService("Workspace")
 
+local InventoryServer = require(ServerScriptService.Server.Servers.InventoryServer)
 local Component = require(ReplicatedStorage.Packages.Component)
-local Action = require(ReplicatedStorage.Shared.Action)
+local ActionTypes = require(ReplicatedStorage.Shared.Types.ActionTypes)
 
-type Action = Action.Action
-type StopReason = Action.StopReason
+type Action = ActionTypes.Action
+type StopReason = ActionTypes.StopReason
 
 local Outworlder = Component.new({
 	Tag = "Outworlder",
 	Ancestors = { Workspace },
 })
+
+--[=[
+	@prop CurrentAction Action?
+	@within Outworlder
+	The action currently being executed, or `nil` if the character is idle.
+]=]
 
 function Outworlder:Construct()
 	self.CurrentAction = nil :: Action?
@@ -25,6 +39,11 @@ function Outworlder:Stop()
 	end
 end
 
+--[=[
+	Begins executing `action`, interrupting any action already in progress.
+	@within Outworlder
+	@param action Action
+]=]
 function Outworlder:StartAction(action: Action)
 	if self.CurrentAction ~= nil then
 		self.CurrentAction:Stop("Interrupted")
@@ -32,6 +51,12 @@ function Outworlder:StartAction(action: Action)
 	self.CurrentAction = action
 end
 
+--[=[
+	Stops the current action with `reason` (defaults to `"Interrupted"`).
+	Does nothing if no action is running.
+	@within Outworlder
+	@param reason StopReason? -- Defaults to `"Interrupted"`.
+]=]
 function Outworlder:StopCurrentAction(reason: StopReason?)
 	if self.CurrentAction ~= nil then
 		self.CurrentAction:Stop(if reason ~= nil then reason else "Interrupted")
@@ -39,6 +64,12 @@ function Outworlder:StopCurrentAction(reason: StopReason?)
 	end
 end
 
+--[=[
+	Returns whether the character is allowed to move given the current action.
+	Always `true` when no action is running.
+	@within Outworlder
+	@return boolean
+]=]
 function Outworlder:AllowsMovement(): boolean
 	if self.CurrentAction == nil then
 		return true

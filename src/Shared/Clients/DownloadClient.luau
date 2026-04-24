@@ -1,3 +1,9 @@
+--[=[
+	@class DownloadClient
+	Downloads and caches server-side assets to the client via Comm.
+	Each asset is fetched once and cloned on subsequent requests.
+]=]
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -28,6 +34,16 @@ function DownloadClient.Init()
 	cacheFolder.Parent = ReplicatedStorage
 end
 
+--[=[
+	Downloads the asset at `path` and returns a clone of it.
+
+	On the first call for a given path, fetches the asset from the server, waits for all
+	manifest leaves to replicate, caches it, and acknowledges receipt. Subsequent calls
+	return a clone directly from cache without a server round-trip.
+	@within DownloadClient
+	@param path string -- Slash-delimited asset path (e.g. `"Weapons/CopperSword"`).
+	@return Instance -- A clone of the downloaded asset.
+]=]
 function DownloadClient.DownloadAsync(path: string): Instance
 	if cache[path] then
 		return cache[path]:Clone()

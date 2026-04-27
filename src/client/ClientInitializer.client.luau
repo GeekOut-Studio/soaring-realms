@@ -6,7 +6,7 @@ local isDevelopmentPlace = ReplicatedStorage:FindFirstChild("IsDevelopmentPlace"
 isDevelopmentPlace = isDevelopmentPlace ~= nil and isDevelopmentPlace.Value
 
 if not (isDevelopmentPlace or RunService:IsStudio()) then
-	local ClientManifest = require(script.Parent:WaitForChild("ClientManifest"))
+	local ClientManifest = require(script.Parent:WaitForChild("ClientManifest")) :: any
 
 	local function waitForManifest(parent: Instance, manifest: { [string]: any })
 		for name, children in manifest do
@@ -25,6 +25,7 @@ local DownloadClient = require(ReplicatedStorage.Shared.Clients.DownloadClient)
 local GuiClient = require(ReplicatedStorage.Shared.Clients.GuiClient)
 local TeleportClient = require(ReplicatedStorage.Shared.Clients.TeleportClient)
 local TestClient = require(ReplicatedStorage.Shared.Clients.TestClient)
+local Cmdr = require(ReplicatedStorage:WaitForChild("CmdrClient")) :: any
 
 DownloadClient.Init()
 GuiClient.Init()
@@ -34,3 +35,5 @@ TestClient.Init()
 for _, component in ReplicatedStorage.Shared.Components:GetChildren() do
 	require(component)
 end
+
+Cmdr:SetActivationKeys({ Enum.KeyCode.F2 })

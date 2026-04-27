@@ -1,6 +1,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local React = require(ReplicatedStorage.Packages.React)
+local Hud = require(ReplicatedStorage.Shared.React.Hud.Hud)
 local TeleportOverlay = require(ReplicatedStorage.Shared.React.TeleportOverlay)
 
 local e = React.createElement
@@ -13,13 +14,7 @@ local App = function()
 			ResetOnSpawn = false,
 			IgnoreGuiInset = true,
 		}, {
-			TestLabel = e("TextLabel", {
-				BackgroundTransparency = 1,
-				AutomaticSize = Enum.AutomaticSize.XY,
-				Text = "Hello, world!",
-				Position = UDim2.fromScale(1, 1),
-				AnchorPoint = Vector2.new(1, 1),
-			}),
+			Hud = e(Hud),
 		}),
 		TeleportOverlay = e(TeleportOverlay),
 	})

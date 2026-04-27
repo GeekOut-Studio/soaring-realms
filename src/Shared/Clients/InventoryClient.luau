@@ -18,8 +18,6 @@ local inventoryProperty
 function InventoryClient.Init()
 	local clientComm = Comm.ClientComm.new(ReplicatedStorage, false, "Inventory")
 	inventoryProperty = clientComm:GetProperty("Inventory")
-
-	InventoryClient.ObserveInventory(print)
 end
 
 --[=[

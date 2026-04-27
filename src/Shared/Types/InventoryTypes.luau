@@ -35,4 +35,11 @@ local InventoryTypes = {}
 ]=]
 InventoryTypes.Size = 30
 
+--[=[
+	@prop DefaultInventory Inventory
+	@within InventoryTypes
+	Empty inventory used as the starting state for new players.
+]=]
+InventoryTypes.DefaultInventory = table.freeze({} :: Inventory)
+
 return InventoryTypes

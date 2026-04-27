@@ -10,17 +10,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Promise = require(ReplicatedStorage.Packages.Promise)
 local Sift = require(ReplicatedStorage.Packages.Sift)
 
-local InventoryTypes = require(ReplicatedStorage.Shared.Types.InventoryTypes)
+local PlayerDataTypes = require(ReplicatedStorage.Shared.Types.PlayerDataTypes)
 
-type PlayerData = {
-	Inventory: InventoryTypes.Inventory,
-	Skills: {},
-}
-
-local PLAYER_DATA_TEMPLATE: PlayerData = {
-	Inventory = {},
-	Skills = {},
-}
+type PlayerData = PlayerDataTypes.PlayerData
 
 local DataServer = {}
 
@@ -36,7 +28,7 @@ function DataServer.Init() end
 ]=]
 function DataServer.GetData(player: Player)
 	if dataByPlayer[player] == nil then
-		dataByPlayer[player] = table.freeze(Sift.Dictionary.copyDeep(PLAYER_DATA_TEMPLATE))
+		dataByPlayer[player] = table.freeze(Sift.Dictionary.copyDeep(PlayerDataTypes.Template))
 	end
 
 	return Promise.resolve(dataByPlayer[player])

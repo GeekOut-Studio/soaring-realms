@@ -8,6 +8,8 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Comm = require(ReplicatedStorage.Packages.Comm)
+local Observers = require(ReplicatedStorage.Packages.Observers)
 local Promise = require(ReplicatedStorage.Packages.Promise)
 local Sift = require(ReplicatedStorage.Packages.Sift)
 
@@ -19,6 +21,8 @@ type Item = InventoryTypes.Item
 type Inventory = InventoryTypes.Inventory
 
 local InventoryServer = {}
+
+local inventoryProperty
 
 -- Private helpers
 
@@ -82,11 +86,12 @@ local function stackableCapacity(
 	return capacity
 end
 
--- Commits a new inventory to DataServer and resolves true.
+-- Commits a new inventory to DataServer, replicates it to the client, and resolves true.
 local function commit(player: Player, newInventory: Inventory)
 	return DataServer.UpdateData(player, function(data)
-		return Sift.Dictionary.merge(data, { Inventory = newInventory })
+		return Sift.Dictionary.set(data, "Inventory", newInventory)
 	end):andThen(function()
+		inventoryProperty:SetFor(player, newInventory)
 		return true
 	end)
 end
@@ -468,6 +473,16 @@ function InventoryServer.RemoveItemByKind(player: Player, kind: string, count: n
 	end)
 end
 
-function InventoryServer.Init() end
+function InventoryServer.Init()
+	local serverComm = Comm.ServerComm.new(ReplicatedStorage, "Inventory")
+	inventoryProperty = serverComm:CreateProperty("Inventory", InventoryTypes.DefaultInventory)
+
+	Observers.observePlayer(function(player)
+		InventoryServer.GetInventory(player):andThen(function(inventory)
+			inventoryProperty:SetFor(player, inventory)
+		end)
+		return nil
+	end)
+end
 
 return InventoryServer

@@ -8,8 +8,8 @@ local App = require(ReplicatedStorage.Shared.React.App)
 local GuiClient = {}
 
 function GuiClient.Init()
-	local tree = ReactRoblox.createRoot(Players.LocalPlayer.PlayerGui)
-	tree:render(React.createElement(App))
+	local root = ReactRoblox.createRoot(Instance.new("Folder"))
+	root:render(ReactRoblox.createPortal(React.createElement(App), Players.LocalPlayer.PlayerGui))
 end
 
 return GuiClient

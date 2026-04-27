@@ -15,11 +15,13 @@ local InventoryClient = {}
 
 local inventoryProperty
 local moveItemFunction
+local dropItemFunction
 
 function InventoryClient.Init()
 	local clientComm = Comm.ClientComm.new(ReplicatedStorage, false, "Inventory")
 	inventoryProperty = clientComm:GetProperty("Inventory")
 	moveItemFunction = clientComm:GetFunction("MoveItem")
+	dropItemFunction = clientComm:GetFunction("DropItem")
 end
 
 --[=[
@@ -52,6 +54,15 @@ end
 ]=]
 function InventoryClient.MoveItem(fromSlot: string, toSlot: string)
 	moveItemFunction(fromSlot, toSlot)
+end
+
+--[=[
+	Requests the server to drop (remove) the item in `slot`.
+	@within InventoryClient
+	@param slot string
+]=]
+function InventoryClient.DropItem(slot: string)
+	dropItemFunction(slot)
 end
 
 return InventoryClient

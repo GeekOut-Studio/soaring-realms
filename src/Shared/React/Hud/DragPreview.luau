@@ -6,6 +6,7 @@ local ColorDefs = require(ReplicatedStorage.Shared.Defs.ColorDefs)
 local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
 local DragContext = require(ReplicatedStorage.Shared.React.DragContext)
 local Label = require(ReplicatedStorage.Shared.React.Common.Label)
+local PlatformScale = require(ReplicatedStorage.Shared.React.Common.PlatformScale)
 
 local e = React.createElement
 
@@ -53,6 +54,7 @@ local function DragPreview()
 		IgnoreGuiInset = true,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	}, {
+		PlatformScale = e(PlatformScale),
 		Preview = e("Frame", {
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = position,

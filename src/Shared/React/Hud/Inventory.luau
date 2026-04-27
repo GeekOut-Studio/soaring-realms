@@ -1,10 +1,12 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 
 local React = require(ReplicatedStorage.Packages.React)
 local Container = require(ReplicatedStorage.Shared.React.Common.Container)
 local GridLayout = require(ReplicatedStorage.Shared.React.Common.GridLayout)
 local Label = require(ReplicatedStorage.Shared.React.Common.Label)
 local ColorDefs = require(ReplicatedStorage.Shared.Defs.ColorDefs)
+local ContextMenuContext = require(ReplicatedStorage.Shared.React.ContextMenuContext)
 local DragContext = require(ReplicatedStorage.Shared.React.DragContext)
 local InventoryClient = require(ReplicatedStorage.Shared.Clients.InventoryClient)
 local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
@@ -15,6 +17,8 @@ type DragItem = DragContext.DragItem
 
 local e = React.createElement
 
+local DRAG_THRESHOLD = 10
+
 type SlotProps = {
 	SlotKey: string,
 	Item: Item?,
@@ -23,6 +27,7 @@ type SlotProps = {
 
 local function InventorySlot(props: SlotProps)
 	local dragContext = React.useContext(DragContext.Context)
+	local contextMenuContext = React.useContext(ContextMenuContext.Context)
 	local slotRef = React.useRef(nil :: GuiObject?)
 	local isSource = dragContext.DragState ~= nil and dragContext.DragState.SourceSlot == props.SlotKey
 
@@ -51,6 +56,21 @@ local function InventorySlot(props: SlotProps)
 		text = if item.Count ~= nil then name .. "\n×" .. item.Count else name
 	end
 
+	local function buildActions(slotKey: string): { ContextMenuContext.ContextMenuAction }
+		return {
+			{
+				Label = "Drop",
+				OnSelect = function()
+					InventoryClient.DropItem(slotKey)
+				end,
+			},
+		}
+	end
+
+	local function openMenu(screenPos: Vector2)
+		contextMenuContext.OpenContextMenu(UDim2.fromOffset(screenPos.X, screenPos.Y), buildActions(props.SlotKey))
+	end
+
 	return e(Container, {
 		Native = {
 			ref = slotRef,
@@ -58,15 +78,45 @@ local function InventorySlot(props: SlotProps)
 			BackgroundColor3 = ColorDefs.SlotBackground,
 			BackgroundTransparency = if isSource then 0.5 else 0,
 			[React.Event.InputBegan] = function(_, input)
-				if
-					(
-						input.UserInputType == Enum.UserInputType.MouseButton1
-						or input.UserInputType == Enum.UserInputType.Touch
-					)
-					and item ~= nil
-					and dragContext.DragState == nil
-				then
+				if item == nil then
+					return
+				end
+
+				if input.UserInputType == Enum.UserInputType.MouseButton1 and dragContext.DragState == nil then
 					dragContext.BeginDrag(item, "Inventory", props.SlotKey)
+				elseif input.UserInputType == Enum.UserInputType.MouseButton2 and dragContext.DragState == nil then
+					openMenu(UserInputService:GetMouseLocation())
+				elseif input.UserInputType == Enum.UserInputType.Touch and dragContext.DragState == nil then
+					local startPos = Vector2.new(input.Position.X, input.Position.Y)
+					local dragStarted = false
+					local touchInput = input
+
+					local movedConn: RBXScriptConnection
+					local endedConn: RBXScriptConnection
+
+					movedConn = UserInputService.InputChanged:Connect(function(changedInput)
+						if changedInput ~= touchInput then
+							return
+						end
+						local delta = Vector2.new(changedInput.Position.X, changedInput.Position.Y) - startPos
+						if delta.Magnitude > DRAG_THRESHOLD and not dragStarted then
+							dragStarted = true
+							movedConn:Disconnect()
+							endedConn:Disconnect()
+							dragContext.BeginDrag(item, "Inventory", props.SlotKey)
+						end
+					end)
+
+					endedConn = UserInputService.InputEnded:Connect(function(endedInput)
+						if endedInput ~= touchInput then
+							return
+						end
+						movedConn:Disconnect()
+						endedConn:Disconnect()
+						if not dragStarted then
+							openMenu(UserInputService:GetMouseLocation())
+						end
+					end)
 				end
 			end,
 		},

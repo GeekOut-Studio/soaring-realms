@@ -489,6 +489,14 @@ function InventoryServer.Init()
 		return InventoryServer.MoveItem(player, fromSlot, toSlot)
 	end)
 
+	serverComm:BindFunction("DropItem", function(player, slot)
+		if not t.string(slot) then
+			return
+		end
+
+		return InventoryServer.RemoveItem(player, slot)
+	end)
+
 	Observers.observePlayer(function(player)
 		InventoryServer.GetInventory(player):andThen(function(inventory)
 			inventoryProperty:SetFor(player, inventory)

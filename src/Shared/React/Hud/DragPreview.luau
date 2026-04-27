@@ -14,23 +14,27 @@ local SLOT_SIZE = 56
 
 local function DragPreview()
 	local dragContext = React.useContext(DragContext.Context)
-	local position, setPosition = React.useState(UDim2.fromOffset(0, 0))
+	local position, setPosition = React.useState(UDim2.fromScale(0, 0))
 
 	React.useEffect(function()
 		if dragContext.DragState == nil then
 			return
 		end
 
-		local mousePos = UserInputService:GetMouseLocation()
-		setPosition(UDim2.fromOffset(mousePos.X, mousePos.Y))
+		local function updatePosition()
+			local mousePos = UserInputService:GetMouseLocation()
+			local viewport = workspace.CurrentCamera.ViewportSize
+			setPosition(UDim2.fromScale(mousePos.X / viewport.X, mousePos.Y / viewport.Y))
+		end
+
+		updatePosition()
 
 		local connection = UserInputService.InputChanged:Connect(function(input)
 			if
 				input.UserInputType == Enum.UserInputType.MouseMovement
 				or input.UserInputType == Enum.UserInputType.Touch
 			then
-				mousePos = UserInputService:GetMouseLocation()
-				setPosition(UDim2.fromOffset(mousePos.X, mousePos.Y))
+				updatePosition()
 			end
 		end)
 

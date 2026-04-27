@@ -68,7 +68,11 @@ local function InventorySlot(props: SlotProps)
 	end
 
 	local function openMenu(screenPos: Vector2)
-		contextMenuContext.OpenContextMenu(UDim2.fromOffset(screenPos.X, screenPos.Y), buildActions(props.SlotKey))
+		local viewport = workspace.CurrentCamera.ViewportSize
+		contextMenuContext.OpenContextMenu(
+			UDim2.fromScale(screenPos.X / viewport.X, screenPos.Y / viewport.Y),
+			buildActions(props.SlotKey)
+		)
 	end
 
 	return e(Container, {

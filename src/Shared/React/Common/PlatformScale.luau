@@ -30,9 +30,8 @@ end
 	Renders a `UIScale` sized to the current platform and viewport. Drop it as a
 	child of any `ScreenGui` that needs platform-adaptive scaling. No props required.
 
-	Console uses a fixed scale. Touch devices split into phone/tablet at
-	`PHONE_THRESHOLD` viewport width. Desktop is fixed. All constants are at the
-	top of this file.
+	Console uses a fixed scale. Viewport width breakpoints distinguish phone,
+	tablet, and desktop. All constants are at the top of this file.
 ]=]
 return function()
 	local viewport, setViewport = React.useState(workspace.CurrentCamera.ViewportSize)

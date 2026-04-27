@@ -41,8 +41,8 @@ local function ContextMenu()
 
 			local viewport = workspace.CurrentCamera.ViewportSize
 			local panelSize = panel.AbsoluteSize
-			local posX = menuState.Position.X.Offset
-			local posY = menuState.Position.Y.Offset
+			local posX = menuState.Position.X.Scale * viewport.X
+			local posY = menuState.Position.Y.Scale * viewport.Y
 
 			local anchorX = if posX + panelSize.X > viewport.X then 1 else 0
 			local anchorY = if posY + panelSize.Y > viewport.Y then 1 else 0

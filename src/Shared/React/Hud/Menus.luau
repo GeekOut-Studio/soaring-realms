@@ -16,10 +16,10 @@ local PANEL_WIDTH = 5 * BUTTON_SIZE + 4 * GAP
 
 local MENU_DEFS = {
 	{ Key = "Inventory", Label = "Inventory", Component = Inventory },
+	{ Key = "Equipment", Label = "Equipment", Component = nil },
 	{ Key = "Skills", Label = "Skills", Component = nil },
 	{ Key = "Journal", Label = "Journal", Component = nil },
 	{ Key = "Abilities", Label = "Abilities & Utility Magic", Component = nil },
-	{ Key = "Social", Label = "Social & Trading", Component = nil },
 }
 
 local function Menus()

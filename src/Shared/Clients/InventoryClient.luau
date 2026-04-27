@@ -14,10 +14,12 @@ type Inventory = InventoryTypes.Inventory
 local InventoryClient = {}
 
 local inventoryProperty
+local moveItemFunction
 
 function InventoryClient.Init()
 	local clientComm = Comm.ClientComm.new(ReplicatedStorage, false, "Inventory")
 	inventoryProperty = clientComm:GetProperty("Inventory")
+	moveItemFunction = clientComm:GetFunction("MoveItem")
 end
 
 --[=[
@@ -40,6 +42,16 @@ end
 ]=]
 function InventoryClient.ObserveInventory(callback: (inventory: Inventory) -> (() -> ())?)
 	return Observing.observeCommProperty(inventoryProperty, callback)
+end
+
+--[=[
+	Requests the server to move the item in `fromSlot` to `toSlot`.
+	@within InventoryClient
+	@param fromSlot string
+	@param toSlot string
+]=]
+function InventoryClient.MoveItem(fromSlot: string, toSlot: string)
+	moveItemFunction(fromSlot, toSlot)
 end
 
 return InventoryClient

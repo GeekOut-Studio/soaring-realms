@@ -5,16 +5,89 @@ local Container = require(ReplicatedStorage.Shared.React.Common.Container)
 local GridLayout = require(ReplicatedStorage.Shared.React.Common.GridLayout)
 local Label = require(ReplicatedStorage.Shared.React.Common.Label)
 local ColorDefs = require(ReplicatedStorage.Shared.Defs.ColorDefs)
+local DragContext = require(ReplicatedStorage.Shared.React.DragContext)
 local InventoryClient = require(ReplicatedStorage.Shared.Clients.InventoryClient)
 local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
 local InventoryTypes = require(ReplicatedStorage.Shared.Types.InventoryTypes)
 
-type Inventory = InventoryTypes.Inventory
+type Item = InventoryTypes.Item
+type DragItem = DragContext.DragItem
 
 local e = React.createElement
 
+type SlotProps = {
+	SlotKey: string,
+	Item: Item?,
+	LayoutOrder: number,
+}
+
+local function InventorySlot(props: SlotProps)
+	local dragContext = React.useContext(DragContext.Context)
+	local slotRef = React.useRef(nil :: GuiObject?)
+	local isSource = dragContext.DragState ~= nil and dragContext.DragState.SourceSlot == props.SlotKey
+
+	React.useEffect(function()
+		local instance = slotRef.current
+		if instance == nil then
+			return
+		end
+
+		dragContext.RegisterDropTarget(props.SlotKey, instance, function(dragItem: DragItem)
+			if dragItem.SourceSlot ~= props.SlotKey then
+				InventoryClient.MoveItem(dragItem.SourceSlot, props.SlotKey)
+			end
+		end)
+
+		return function()
+			dragContext.UnregisterDropTarget(props.SlotKey, instance)
+		end
+	end, {})
+
+	local item = props.Item
+	local text = ""
+	if item ~= nil then
+		local def = ItemDefs[item.Kind]
+		local name = if def ~= nil then def.Name else item.Kind
+		text = if item.Count ~= nil then name .. "\n×" .. item.Count else name
+	end
+
+	return e(Container, {
+		Native = {
+			ref = slotRef,
+			LayoutOrder = props.LayoutOrder,
+			BackgroundColor3 = ColorDefs.SlotBackground,
+			BackgroundTransparency = if isSource then 0.5 else 0,
+			[React.Event.InputBegan] = function(_, input)
+				if
+					(
+						input.UserInputType == Enum.UserInputType.MouseButton1
+						or input.UserInputType == Enum.UserInputType.Touch
+					)
+					and item ~= nil
+					and dragContext.DragState == nil
+				then
+					dragContext.BeginDrag(item, "Inventory", props.SlotKey)
+				end
+			end,
+		},
+	}, {
+		ItemLabel = e(Label, {
+			Native = {
+				TextColor3 = ColorDefs.TextPrimary,
+				TextSize = 13,
+				TextWrapped = true,
+				Text = text,
+			},
+		}),
+		Stroke = e("UIStroke", {
+			Color = ColorDefs.SlotBorder,
+			Thickness = 1,
+		}),
+	})
+end
+
 local function Inventory()
-	local inventory, setInventory = React.useState({} :: Inventory)
+	local inventory, setInventory = React.useState({} :: InventoryTypes.Inventory)
 
 	React.useEffect(function()
 		return InventoryClient.ObserveInventory(function(inv)
@@ -43,33 +116,11 @@ local function Inventory()
 	}
 
 	for i = 1, InventoryTypes.Size do
-		local item = inventory[tostring(i)]
-		local text = ""
-		if item ~= nil then
-			local def = ItemDefs[item.Kind]
-			local name = if def ~= nil then def.Name else item.Kind
-			text = if item.Count ~= nil then name .. "\n×" .. item.Count else name
-		end
-
-		children["Slot" .. i] = e(Container, {
-			Native = {
-				LayoutOrder = i,
-				BackgroundColor3 = ColorDefs.SlotBackground,
-				BackgroundTransparency = 0,
-			},
-		}, {
-			ItemLabel = e(Label, {
-				Native = {
-					TextColor3 = ColorDefs.TextPrimary,
-					TextSize = 13,
-					TextWrapped = true,
-					Text = text,
-				},
-			}),
-			Stroke = e("UIStroke", {
-				Color = ColorDefs.SlotBorder,
-				Thickness = 1,
-			}),
+		local slotKey = tostring(i)
+		children["Slot" .. i] = e(InventorySlot, {
+			SlotKey = slotKey,
+			Item = inventory[slotKey],
+			LayoutOrder = i,
 		})
 	end
 

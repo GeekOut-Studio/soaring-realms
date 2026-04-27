@@ -12,6 +12,7 @@ local Comm = require(ReplicatedStorage.Packages.Comm)
 local Observers = require(ReplicatedStorage.Packages.Observers)
 local Promise = require(ReplicatedStorage.Packages.Promise)
 local Sift = require(ReplicatedStorage.Packages.Sift)
+local t = require(ReplicatedStorage.Packages.t)
 
 local DataServer = require(script.Parent.DataServer)
 local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
@@ -476,6 +477,17 @@ end
 function InventoryServer.Init()
 	local serverComm = Comm.ServerComm.new(ReplicatedStorage, "Inventory")
 	inventoryProperty = serverComm:CreateProperty("Inventory", InventoryTypes.DefaultInventory)
+
+	serverComm:BindFunction("MoveItem", function(player, fromSlot, toSlot)
+		if not t.string(fromSlot) then
+			return
+		end
+		if not t.string(toSlot) then
+			return
+		end
+
+		return InventoryServer.MoveItem(player, fromSlot, toSlot)
+	end)
 
 	Observers.observePlayer(function(player)
 		InventoryServer.GetInventory(player):andThen(function(inventory)

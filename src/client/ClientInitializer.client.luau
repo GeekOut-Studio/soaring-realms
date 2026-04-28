@@ -25,6 +25,7 @@ local DownloadClient = require(ReplicatedStorage.Shared.Clients.DownloadClient)
 local EquipmentClient = require(ReplicatedStorage.Shared.Clients.EquipmentClient)
 local GuiClient = require(ReplicatedStorage.Shared.Clients.GuiClient)
 local InventoryClient = require(ReplicatedStorage.Shared.Clients.InventoryClient)
+local SkillClient = require(ReplicatedStorage.Shared.Clients.SkillClient)
 local TeleportClient = require(ReplicatedStorage.Shared.Clients.TeleportClient)
 local Cmdr = require(ReplicatedStorage:WaitForChild("CmdrClient")) :: any
 
@@ -33,6 +34,7 @@ GuiClient.Init()
 TeleportClient.Init()
 InventoryClient.Init()
 EquipmentClient.Init()
+SkillClient.Init()
 
 for _, component in ReplicatedStorage.Shared.Components:GetChildren() do
 	require(component)

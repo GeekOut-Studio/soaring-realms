@@ -9,18 +9,19 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local EquipmentTypes = require(ReplicatedStorage.Shared.Types.EquipmentTypes)
 local InventoryTypes = require(ReplicatedStorage.Shared.Types.InventoryTypes)
+local SkillTypes = require(ReplicatedStorage.Shared.Types.SkillTypes)
 
 --[=[
 	@interface PlayerData
 	@within PlayerDataTypes
 	@field Inventory Inventory
 	@field Equipment Equipment
-	@field Skills {}
+	@field Skills Skills
 ]=]
 export type PlayerData = {
 	Inventory: InventoryTypes.Inventory,
 	Equipment: EquipmentTypes.Equipment,
-	Skills: {},
+	Skills: SkillTypes.Skills,
 }
 
 local PlayerDataTypes = {}
@@ -33,7 +34,7 @@ local PlayerDataTypes = {}
 PlayerDataTypes.Template = table.freeze({
 	Inventory = InventoryTypes.DefaultInventory,
 	Equipment = EquipmentTypes.DefaultEquipment,
-	Skills = {},
+	Skills = SkillTypes.DefaultSkills,
 } :: PlayerData)
 
 return PlayerDataTypes

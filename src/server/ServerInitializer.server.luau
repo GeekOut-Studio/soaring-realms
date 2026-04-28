@@ -7,6 +7,7 @@ local DownloadServer = require(ServerScriptService.Server.Servers.DownloadServer
 local EquipmentServer = require(ServerScriptService.Server.Servers.EquipmentServer)
 local GameServer = require(ServerScriptService.Server.Servers.GameServer)
 local InventoryServer = require(ServerScriptService.Server.Servers.InventoryServer)
+local SkillServer = require(ServerScriptService.Server.Servers.SkillServer)
 local TeleportServer = require(ServerScriptService.Server.Servers.TeleportServer)
 
 DataServer.Init()
@@ -15,6 +16,7 @@ GameServer.Init()
 TeleportServer.Init()
 InventoryServer.Init()
 EquipmentServer.Init()
+SkillServer.Init()
 
 for _, component in ServerScriptService.Server.Components:GetChildren() do
 	require(component)

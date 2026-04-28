@@ -55,37 +55,59 @@ local defaultValue: DragContextValue = {
 	Drop targets register their own OnDrop callbacks; the provider mediates
 	between draggable items and registered targets via GetGuiObjectsAtPosition.
 ]=]
+
+--[=[
+	@prop Context React.Context<DragContextValue>
+	@within DragContext
+	The React context consumed by draggables and drop targets.
+]=]
 local Context = React.createContext(defaultValue)
 
+--[=[
+	@within DragContext
+	Provider component that owns drag state and the drop-target registry.
+	Wrap any subtree containing draggables or drop targets in a single Provider.
+	@param props { children: any }
+]=]
 local function Provider(props: { children: any })
 	local dragState, setDragState = React.useState(nil :: DragItem?)
 	local hoveredEntry = React.useRef(nil :: RegistryEntry?)
-	local registry = React.useRef({} :: { [string]: RegistryEntry })
 	local instanceMap = React.useRef({} :: { [GuiObject]: RegistryEntry })
 
-	local contextValue: DragContextValue = {
-		DragState = dragState,
-		BeginDrag = function(item, sourceContainer, sourceSlot)
-			setDragState({
-				Item = item,
-				SourceContainer = sourceContainer,
-				SourceSlot = sourceSlot,
-			})
-		end,
-		CancelDrag = function()
-			setDragState(nil)
+	local beginDrag = React.useCallback(function(item, sourceContainer, sourceSlot)
+		setDragState({
+			Item = item,
+			SourceContainer = sourceContainer,
+			SourceSlot = sourceSlot,
+		})
+	end, {})
+
+	local cancelDrag = React.useCallback(function()
+		setDragState(nil)
+		hoveredEntry.current = nil
+	end, {})
+
+	local registerDropTarget = React.useCallback(function(_id, instance, onDrop)
+		instanceMap.current[instance] = { OnDrop = onDrop }
+	end, {})
+
+	local unregisterDropTarget = React.useCallback(function(_id, instance)
+		local entry = instanceMap.current[instance]
+		if entry ~= nil and hoveredEntry.current == entry then
 			hoveredEntry.current = nil
-		end,
-		RegisterDropTarget = function(id, instance, onDrop)
-			local entry: RegistryEntry = { OnDrop = onDrop }
-			registry.current[id] = entry
-			instanceMap.current[instance] = entry
-		end,
-		UnregisterDropTarget = function(id, instance)
-			registry.current[id] = nil
-			instanceMap.current[instance] = nil
-		end,
-	}
+		end
+		instanceMap.current[instance] = nil
+	end, {})
+
+	local contextValue = React.useMemo(function(): DragContextValue
+		return {
+			DragState = dragState,
+			BeginDrag = beginDrag,
+			CancelDrag = cancelDrag,
+			RegisterDropTarget = registerDropTarget,
+			UnregisterDropTarget = unregisterDropTarget,
+		}
+	end, { dragState, beginDrag, cancelDrag, registerDropTarget, unregisterDropTarget } :: { any })
 
 	React.useEffect(function()
 		if dragState == nil then

@@ -38,6 +38,9 @@ local function InventorySlot(props: SlotProps)
 		end
 
 		dragContext.RegisterDropTarget(props.SlotKey, instance, function(dragItem: DragItem)
+			if dragItem.SourceContainer ~= "Inventory" then
+				return
+			end
 			if dragItem.SourceSlot ~= props.SlotKey then
 				InventoryClient.MoveItem(dragItem.SourceSlot, props.SlotKey)
 			end

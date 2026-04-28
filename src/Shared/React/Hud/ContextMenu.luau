@@ -18,13 +18,13 @@ local BUTTON_GAP = 2
 local function ContextMenu()
 	local contextMenuContext = React.useContext(ContextMenuContext.Context)
 	local menuState = contextMenuContext.MenuState
-	local anchorPoint, setAnchorPoint = React.useState(Vector2.new(0, 0))
+	local anchorPoint, setAnchorPoint = React.useState(nil :: Vector2?)
 	local panelRef = React.useRef(nil :: Frame?)
 
 	-- Defer reading AbsoluteSize so AutomaticSize has resolved before we check bounds.
 	React.useEffect(function()
 		if menuState == nil then
-			setAnchorPoint(Vector2.new(0, 0))
+			setAnchorPoint(nil)
 			return
 		end
 
@@ -76,7 +76,7 @@ local function ContextMenu()
 			local panel = panelRef.current
 
 			for _, obj in objects do
-				if obj == panel then
+				if obj == panel or (panel ~= nil and obj:IsDescendantOf(panel)) then
 					return
 				end
 			end
@@ -104,16 +104,15 @@ local function ContextMenu()
 	}
 
 	for i, action in menuState.Actions do
-		local capturedAction = action
 		panelChildren["Action" .. i] = e(TextButton, {
 			Native = {
 				LayoutOrder = i,
 				Size = UDim2.new(1, 0, 0, BUTTON_HEIGHT),
 				TextSize = 14,
-				Text = capturedAction.Label,
+				Text = action.Label,
 				[React.Event.Activated] = function()
 					contextMenuContext.CloseContextMenu()
-					capturedAction.OnSelect()
+					action.OnSelect()
 				end,
 			},
 		})
@@ -128,8 +127,12 @@ local function ContextMenu()
 		PlatformScale = e(PlatformScale),
 		Panel = e("Frame", {
 			ref = panelRef,
-			AnchorPoint = anchorPoint,
-			Position = menuState.Position,
+			AnchorPoint = if anchorPoint ~= nil then anchorPoint else Vector2.new(0, 0),
+			-- Render far offscreen on the first frame so AutomaticSize can resolve
+			-- AbsoluteSize without the user seeing the panel at the wrong anchor.
+			-- The deferred effect above measures and then sets `anchorPoint`,
+			-- which flips us to the real position on the next render.
+			Position = if anchorPoint ~= nil then menuState.Position else UDim2.fromScale(16, 16),
 			Size = UDim2.fromOffset(BUTTON_WIDTH, 0),
 			AutomaticSize = Enum.AutomaticSize.Y,
 			BackgroundColor3 = ColorDefs.PanelBackground,

@@ -52,20 +52,38 @@ local defaultValue: ContextMenuContextValue = {
 	entries; the `ContextMenu` component renders them. No item or game knowledge
 	lives here.
 ]=]
+
+--[=[
+	@prop Context React.Context<ContextMenuContextValue>
+	@within ContextMenuContext
+	The React context consumed by openers and the renderer.
+]=]
 local Context = React.createContext(defaultValue)
 
+--[=[
+	@within ContextMenuContext
+	Provider component that owns the active menu state. Wrap any subtree that
+	opens or renders the context menu in a single Provider.
+	@param props { children: any }
+]=]
 local function Provider(props: { children: any })
 	local menuState, setMenuState = React.useState(nil :: ContextMenuState?)
 
-	local contextValue: ContextMenuContextValue = {
-		MenuState = menuState,
-		OpenContextMenu = function(position, actions)
-			setMenuState({ Position = position, Actions = actions })
-		end,
-		CloseContextMenu = function()
-			setMenuState(nil)
-		end,
-	}
+	local openContextMenu = React.useCallback(function(position, actions)
+		setMenuState({ Position = position, Actions = actions })
+	end, {})
+
+	local closeContextMenu = React.useCallback(function()
+		setMenuState(nil)
+	end, {})
+
+	local contextValue = React.useMemo(function(): ContextMenuContextValue
+		return {
+			MenuState = menuState,
+			OpenContextMenu = openContextMenu,
+			CloseContextMenu = closeContextMenu,
+		}
+	end, { menuState, openContextMenu, closeContextMenu } :: { any })
 
 	return e(Context.Provider, { value = contextValue }, props.children)
 end

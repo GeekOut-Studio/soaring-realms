@@ -1,8 +1,21 @@
+--!strict
+
+--[=[
+	@class DownloadServer
+	Streams assets from `ServerStorage.Assets` to clients on demand.
+
+	Each request clones the requested asset into the calling player's `PlayerGui` so it
+	replicates to that player only. The client moves the replicated copy into its own
+	cache folder and fires `AcknowledgeAsset`, at which point the server destroys its
+	temporary container. Assets remain in `ServerStorage` until requested.
+]=]
+
 local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 
 local Comm = require(ReplicatedStorage.Packages.Comm)
+local t = require(ReplicatedStorage.Packages.t)
 
 local DownloadServer = {}
 
@@ -44,13 +57,20 @@ function DownloadServer.Init()
 	local serverComm = Comm.ServerComm.new(ReplicatedStorage, "Download")
 
 	serverComm:CreateSignal("AcknowledgeAsset"):Connect(function(player: Player, containerName: string)
+		if not t.string(containerName) then
+			return
+		end
 		local container = player.PlayerGui:FindFirstChild(containerName)
 		if container ~= nil then
 			container:Destroy()
 		end
 	end)
 
-	serverComm:BindFunction("DownloadAsync", function(player: Player, path: string)
+	serverComm:BindFunction("Download", function(player: Player, path: string)
+		if not t.string(path) then
+			return
+		end
+
 		local asset = resolvePath(path)
 		assert(asset ~= nil, "Asset not found: " .. tostring(path))
 

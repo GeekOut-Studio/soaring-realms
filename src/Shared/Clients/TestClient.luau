@@ -11,7 +11,7 @@ function TestClient.Init()
 		local character = player.Character or player.CharacterAdded:Wait()
 		local rightHand = character:WaitForChild("RightHand")
 
-		local sword = DownloadClient.DownloadAsync("Base/Weapons/SwordTest")
+		local sword = DownloadClient.Download("Base/Weapons/SwordTest"):expect()
 		assert(sword.PrimaryPart ~= nil, "SwordTest has no PrimaryPart")
 
 		sword:PivotTo(rightHand.CFrame)

@@ -11,6 +11,7 @@ export type ItemDef = {
 	Name: string,
 	MaxStackSize: number?, -- nil = not stackable (one item per slot)
 	EquipSlots: { EquipmentTypes.EquipmentSlot }?, -- nil = not equippable. Listed in display order.
+	AssetPath: string?, -- nil = no rendered asset. Slash-delimited path under ServerStorage.Assets.
 }
 
 export type ItemDefs = { [string]: ItemDef }
@@ -32,6 +33,7 @@ local Defs = {
 	CopperSword = {
 		Name = "Copper Sword",
 		EquipSlots = { "MainHandMelee" },
+		AssetPath = "Base/Weapons/SwordCopper",
 	},
 }
 

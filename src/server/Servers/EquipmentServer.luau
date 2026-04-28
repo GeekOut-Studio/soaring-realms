@@ -14,6 +14,7 @@ local Comm = require(ReplicatedStorage.Packages.Comm)
 local Observers = require(ReplicatedStorage.Packages.Observers)
 local Promise = require(ReplicatedStorage.Packages.Promise)
 local Sift = require(ReplicatedStorage.Packages.Sift)
+local Signal = require(ReplicatedStorage.Packages.Signal)
 local t = require(ReplicatedStorage.Packages.t)
 
 local DataServer = require(ServerScriptService.Server.Servers.DataServer)
@@ -29,6 +30,7 @@ type Equipment = EquipmentTypes.Equipment
 local EquipmentServer = {}
 
 local equipmentProperty
+local equipmentChanged: Signal.Signal<Player, Equipment> = Signal.new()
 
 -- Private helpers
 
@@ -73,6 +75,7 @@ local function commit(player: Player, newInventory: Inventory, newEquipment: Equ
 	end):andThen(function()
 		InventoryServer.ReplicateInventory(player, newInventory)
 		equipmentProperty:SetFor(player, newEquipment)
+		equipmentChanged:Fire(player, newEquipment)
 		return true
 	end)
 end
@@ -87,6 +90,32 @@ function EquipmentServer.GetEquipment(player: Player): any
 	return DataServer.GetData(player):andThen(function(data)
 		return Sift.Dictionary.copy(asEquipment(data))
 	end)
+end
+
+--[=[
+	Observes changes to `player`'s equipment.
+
+	`callback` is invoked once with the current value as soon as the player's data is loaded
+	and again on every subsequent equip/unequip commit.
+	@within EquipmentServer
+	@param player Player
+	@param callback (equipment: Equipment) -> () -- Handler called on each value change.
+	@return () -> () -- Disconnects the observer when called.
+]=]
+function EquipmentServer.ObserveEquipment(player: Player, callback: (equipment: Equipment) -> ()): () -> ()
+	local connection = equipmentChanged:Connect(function(p: Player, equipment: Equipment)
+		if p == player then
+			callback(equipment)
+		end
+	end)
+
+	DataServer.GetData(player):andThen(function(data)
+		callback(asEquipment(data))
+	end)
+
+	return function()
+		connection:Disconnect()
+	end
 end
 
 --[=[

@@ -64,12 +64,13 @@ function DownloadClient.Download(path: string): any
 
 		local playerGui = Players.LocalPlayer.PlayerGui
 		local container = playerGui:WaitForChild(containerName)
-		local asset = container:WaitForChild(assetName)
+		local downloaded = container:WaitForChild(assetName)
 
 		for _, leafPath in manifest do
-			waitForLeaf(asset, leafPath)
+			waitForLeaf(downloaded, leafPath)
 		end
 
+		local asset = downloaded:Clone()
 		asset.Parent = cacheFolder
 		acknowledgeSignal:Fire(containerName)
 		resolve(asset)

@@ -6,13 +6,19 @@
 	Action and drives its update loop.
 ]=]
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 local Workspace = game:GetService("Workspace")
 
-local InventoryServer = require(ServerScriptService.Server.Servers.InventoryServer)
+local Comm = require(ReplicatedStorage.Packages.Comm)
 local Component = require(ReplicatedStorage.Packages.Component)
+local Trove = require(ReplicatedStorage.Packages.Trove)
+
+local EquipmentServer = require(ServerScriptService.Server.Servers.EquipmentServer)
+local InventoryServer = require(ServerScriptService.Server.Servers.InventoryServer)
 local ActionTypes = require(ReplicatedStorage.Shared.Types.ActionTypes)
+local EquipmentTypes = require(ReplicatedStorage.Shared.Types.EquipmentTypes)
 
 type Action = ActionTypes.Action
 type StopReason = ActionTypes.StopReason
@@ -30,6 +36,18 @@ local Outworlder = Component.new({
 
 function Outworlder:Construct()
 	self.CurrentAction = nil :: Action?
+	self.Trove = Trove.new()
+
+	self.Comm = Comm.ServerComm.new(self.Instance, "Outworlder")
+	self.Trove:Add(self.Comm)
+	self.EquipmentProperty = self.Comm:CreateProperty("Equipment", EquipmentTypes.DefaultEquipment)
+
+	local player = Players:GetPlayerFromCharacter(self.Instance)
+	assert(player ~= nil, `Outworlder character has no associated player: {self.Instance:GetFullName()}`)
+
+	self.Trove:Add(EquipmentServer.ObserveEquipment(player, function(equipment)
+		self.EquipmentProperty:Set(equipment)
+	end))
 end
 
 function Outworlder:Stop()
@@ -37,6 +55,7 @@ function Outworlder:Stop()
 		self.CurrentAction:Stop("Interrupted")
 		self.CurrentAction = nil
 	end
+	self.Trove:Destroy()
 end
 
 --[=[

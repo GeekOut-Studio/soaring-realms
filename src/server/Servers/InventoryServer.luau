@@ -7,6 +7,7 @@
 ]=]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 
 local Comm = require(ReplicatedStorage.Packages.Comm)
 local Observers = require(ReplicatedStorage.Packages.Observers)
@@ -14,7 +15,7 @@ local Promise = require(ReplicatedStorage.Packages.Promise)
 local Sift = require(ReplicatedStorage.Packages.Sift)
 local t = require(ReplicatedStorage.Packages.t)
 
-local DataServer = require(script.Parent.DataServer)
+local DataServer = require(ServerScriptService.Server.Servers.DataServer)
 local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
 local InventoryTypes = require(ReplicatedStorage.Shared.Types.InventoryTypes)
 
@@ -472,6 +473,19 @@ function InventoryServer.RemoveItemByKind(player: Player, kind: string, count: n
 
 		return commit(player, newInventory)
 	end)
+end
+
+--[=[
+	Replicates `inventory` to the player's `Inventory` Comm property without writing to DataServer.
+	Use this from sibling servers (e.g. `EquipmentServer`) that perform their own atomic
+	cross-table commit through `DataServer.UpdateData` and only need to push the resulting
+	inventory state to the client.
+	@within InventoryServer
+	@param player Player
+	@param inventory Inventory
+]=]
+function InventoryServer.ReplicateInventory(player: Player, inventory: Inventory)
+	inventoryProperty:SetFor(player, inventory)
 end
 
 function InventoryServer.Init()

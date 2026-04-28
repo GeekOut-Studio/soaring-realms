@@ -4,10 +4,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Sift = require(ReplicatedStorage.Packages.Sift)
 
+local EquipmentTypes = require(ReplicatedStorage.Shared.Types.EquipmentTypes)
+
 export type ItemDef = {
 	Kind: string,
 	Name: string,
 	MaxStackSize: number?, -- nil = not stackable (one item per slot)
+	EquipSlots: { EquipmentTypes.EquipmentSlot }?, -- nil = not equippable. Listed in display order.
 }
 
 export type ItemDefs = { [string]: ItemDef }
@@ -28,6 +31,7 @@ local Defs = {
 	},
 	CopperSword = {
 		Name = "Copper Sword",
+		EquipSlots = { "MainHandMelee" },
 	},
 }
 

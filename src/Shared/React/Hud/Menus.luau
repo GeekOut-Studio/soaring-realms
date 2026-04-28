@@ -6,6 +6,7 @@ local HorizontalList = require(ReplicatedStorage.Shared.React.Common.HorizontalL
 local TextButton = require(ReplicatedStorage.Shared.React.Common.TextButton)
 local VerticalList = require(ReplicatedStorage.Shared.React.Common.VerticalList)
 local ColorDefs = require(ReplicatedStorage.Shared.Defs.ColorDefs)
+local Equipment = require(ReplicatedStorage.Shared.React.Hud.Equipment)
 local Inventory = require(ReplicatedStorage.Shared.React.Hud.Inventory)
 
 local e = React.createElement
@@ -16,7 +17,7 @@ local PANEL_WIDTH = 5 * BUTTON_SIZE + 4 * GAP
 
 local MENU_DEFS = {
 	{ Key = "Inventory", Label = "Inventory", Component = Inventory },
-	{ Key = "Equipment", Label = "Equipment", Component = nil },
+	{ Key = "Equipment", Label = "Equipment", Component = Equipment },
 	{ Key = "Skills", Label = "Skills", Component = nil },
 	{ Key = "Journal", Label = "Journal", Component = nil },
 	{ Key = "Abilities", Label = "Abilities & Utility Magic", Component = nil },

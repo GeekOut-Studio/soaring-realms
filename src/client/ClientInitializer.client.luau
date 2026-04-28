@@ -22,6 +22,7 @@ end
 
 -- initialize the client
 local DownloadClient = require(ReplicatedStorage.Shared.Clients.DownloadClient)
+local EquipmentClient = require(ReplicatedStorage.Shared.Clients.EquipmentClient)
 local GuiClient = require(ReplicatedStorage.Shared.Clients.GuiClient)
 local InventoryClient = require(ReplicatedStorage.Shared.Clients.InventoryClient)
 local TeleportClient = require(ReplicatedStorage.Shared.Clients.TeleportClient)
@@ -33,6 +34,7 @@ GuiClient.Init()
 TeleportClient.Init()
 TestClient.Init()
 InventoryClient.Init()
+EquipmentClient.Init()
 
 for _, component in ReplicatedStorage.Shared.Components:GetChildren() do
 	require(component)

@@ -16,7 +16,6 @@ local Component = require(ReplicatedStorage.Packages.Component)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local EquipmentServer = require(ServerScriptService.Server.Servers.EquipmentServer)
-local InventoryServer = require(ServerScriptService.Server.Servers.InventoryServer)
 local ActionTypes = require(ReplicatedStorage.Shared.Types.ActionTypes)
 local EquipmentTypes = require(ReplicatedStorage.Shared.Types.EquipmentTypes)
 

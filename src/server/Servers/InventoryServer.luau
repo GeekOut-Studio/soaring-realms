@@ -91,7 +91,7 @@ end
 -- Commits a new inventory to DataServer, replicates it to the client, and resolves true.
 local function commit(player: Player, newInventory: Inventory)
 	return DataServer.UpdateData(player, function(data)
-		return Sift.Dictionary.set(data, "Inventory", newInventory)
+		return Sift.Dictionary.merge(data, { Inventory = newInventory })
 	end):andThen(function()
 		inventoryProperty:SetFor(player, newInventory)
 		return true

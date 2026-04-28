@@ -15,7 +15,7 @@ function GameServer.Init()
 		end
 	end)
 
-	Observers.observePlayer(function(player)
+	Observers.observePlayer(function(_player)
 		-- initialize player
 
 		return function()

@@ -90,7 +90,11 @@ local function InventorySlot(props: SlotProps)
 					dragContext.BeginDrag(item, "Inventory", props.SlotKey)
 				elseif input.UserInputType == Enum.UserInputType.MouseButton2 and dragContext.DragState == nil then
 					openMenu(UserInputService:GetMouseLocation())
-				elseif input.UserInputType == Enum.UserInputType.Touch and dragContext.DragState == nil then
+				elseif
+					input.UserInputType == Enum.UserInputType.Touch
+					and input.UserInputState == Enum.UserInputState.Begin
+					and dragContext.DragState == nil
+				then
 					local startPos = Vector2.new(input.Position.X, input.Position.Y)
 					local dragStarted = false
 					local touchInput = input

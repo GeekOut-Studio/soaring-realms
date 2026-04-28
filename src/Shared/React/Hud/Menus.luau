@@ -73,6 +73,7 @@ local function Menus()
 		Content = if selectedMenu ~= nil
 			then e(Container, {
 				Native = {
+					Active = true,
 					Size = UDim2.fromOffset(PANEL_WIDTH, 0),
 					AutomaticSize = Enum.AutomaticSize.Y,
 					LayoutOrder = 1,

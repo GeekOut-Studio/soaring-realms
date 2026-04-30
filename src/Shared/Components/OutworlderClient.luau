@@ -20,6 +20,7 @@ local Workspace = game:GetService("Workspace")
 
 local Comm = require(ReplicatedStorage.Packages.Comm)
 local Component = require(ReplicatedStorage.Packages.Component)
+local Signal = require(ReplicatedStorage.Packages.Signal)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local DownloadClient = require(ReplicatedStorage.Shared.Clients.DownloadClient)
@@ -82,7 +83,8 @@ function OutworlderClient:Construct()
 	self.Player = Players:GetPlayerFromCharacter(self.Instance)
 	self.IsLocalPlayer = self.Player == Players.LocalPlayer
 
-	self.LocalStamina = MovementTypes.MaxStamina
+	self.Stamina = MovementTypes.MaxStamina
+	self.StaminaChanged = self.Trove:Construct(Signal) :: Signal.Signal<number>
 
 	self.Comm = Comm.ClientComm.new(self.Instance, false, "Outworlder")
 	self.Trove:Add(self.Comm)
@@ -90,6 +92,19 @@ function OutworlderClient:Construct()
 	self.MovementModeProperty = self.Comm:GetProperty("MovementMode")
 	self.StaminaProperty = self.Comm:GetProperty("Stamina")
 	self.RequestSetMovementModeFunction = self.Comm:GetFunction("RequestSetMovementMode")
+end
+
+--[=[
+	Updates the predicted stamina and fires `StaminaChanged` if the value actually changed.
+	@within OutworlderClient
+	@param value number
+]=]
+function OutworlderClient:SetStamina(value: number)
+	if self.Stamina == value then
+		return
+	end
+	self.Stamina = value
+	self.StaminaChanged:Fire(value)
 end
 
 function OutworlderClient:Start()
@@ -121,7 +136,7 @@ end
 ]=]
 function OutworlderClient:SetupLocalControls()
 	self.Trove:Add(Observing.observeCommProperty(self.StaminaProperty, function(stamina: number)
-		self.LocalStamina = stamina
+		self:SetStamina(stamina)
 	end))
 
 	self.Trove:Connect(UserInputService.InputBegan, function(input: InputObject, processed: boolean)
@@ -132,7 +147,7 @@ function OutworlderClient:SetupLocalControls()
 	end)
 
 	self.Trove:Connect(RunService.Heartbeat, function(dt: number)
-		self:LocalSprintTick(dt)
+		self:SprintTick(dt)
 	end)
 end
 
@@ -157,7 +172,7 @@ end
 ]=]
 function OutworlderClient:ToggleSprint()
 	local current = self.MovementModeProperty:Get()
-	if current ~= "Sprint" and self.LocalStamina <= 0 then
+	if current ~= "Sprint" and self.Stamina <= 0 then
 		return
 	end
 	local desired: MovementMode = if current == "Sprint" then "Walk" else "Sprint"
@@ -195,21 +210,21 @@ function OutworlderClient:SetMovementMode(mode: MovementMode)
 end
 
 --[=[
-	Per-frame local-player tick that handles two sprint cancellation paths and the local
-	stamina drain prediction:
+	Per-frame tick that handles two sprint cancellation paths and the predictive stamina
+	drain:
 
 	1. If `MovementMode == "Sprint"` and `MovingDirection` is zero, request `Walk`
 	   (covers "released movement keys" / "stopped moving").
-	2. Otherwise, drain `LocalStamina` via `OutworlderShared.StepStamina` (no regen on
-	   the client — server-replicated values handle that). If local stamina hits zero,
-	   request `Walk` immediately so the player feels the slowdown without a roundtrip.
+	2. Otherwise, drain `Stamina` via `OutworlderShared.StepStamina` (no regen on the
+	   client — server-replicated values handle that). If stamina hits zero, request
+	   `Walk` immediately so the player feels the slowdown without a roundtrip.
 
-	Server replication of `Stamina` will hard-snap `LocalStamina` to the authoritative
+	Server replication of `Stamina` will hard-snap our `Stamina` to the authoritative
 	value via the `observeCommProperty` subscription set up in `SetupLocalControls`.
 	@within OutworlderClient
 	@param dt number
 ]=]
-function OutworlderClient:LocalSprintTick(dt: number)
+function OutworlderClient:SprintTick(dt: number)
 	local mode = self.MovementModeProperty:Get() :: MovementMode
 	if mode ~= "Sprint" then
 		return
@@ -221,8 +236,9 @@ function OutworlderClient:LocalSprintTick(dt: number)
 		return
 	end
 
-	self.LocalStamina = OutworlderShared.StepStamina(self.LocalStamina, mode, isMoving, dt, false)
-	if self.LocalStamina <= 0 then
+	local nextStamina = OutworlderShared.StepStamina(self.Stamina, mode, isMoving, dt, false)
+	self:SetStamina(nextStamina)
+	if self.Stamina <= 0 then
 		self:SetMovementMode("Walk")
 	end
 end

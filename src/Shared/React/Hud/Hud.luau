@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local React = require(ReplicatedStorage.Packages.React)
 local Container = require(ReplicatedStorage.Shared.React.Common.Container)
 local PaddingAll = require(ReplicatedStorage.Shared.React.Common.PaddingAll)
+local Hotbar = require(ReplicatedStorage.Shared.React.Hud.Hotbar)
 local Menus = require(ReplicatedStorage.Shared.React.Hud.Menus)
 
 local e = React.createElement
@@ -18,6 +19,7 @@ local function Hud()
 			Padding = UDim.new(0, 16),
 		}),
 		Menus = e(Menus),
+		Hotbar = e(Hotbar),
 	})
 end
 

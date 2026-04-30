@@ -19,6 +19,7 @@ local t = require(ReplicatedStorage.Packages.t)
 
 local EquipmentServer = require(ServerScriptService.Server.Servers.EquipmentServer)
 local ActionTypes = require(ReplicatedStorage.Shared.Types.ActionTypes)
+local AnimationDefs = require(ReplicatedStorage.Shared.Defs.AnimationDefs)
 local EquipmentTypes = require(ReplicatedStorage.Shared.Types.EquipmentTypes)
 local MovementTypes = require(ReplicatedStorage.Shared.Types.MovementTypes)
 local OutworlderShared = require(ReplicatedStorage.Shared.Components.OutworlderShared)
@@ -26,6 +27,7 @@ local OutworlderShared = require(ReplicatedStorage.Shared.Components.OutworlderS
 type Action = ActionTypes.Action
 type StopReason = ActionTypes.StopReason
 type MovementMode = MovementTypes.MovementMode
+type AnimationKind = AnimationDefs.AnimationKind
 
 local WAIT_FOR_CHILD_TIMEOUT = 10
 
@@ -53,9 +55,18 @@ local Outworlder = Component.new({
 	the `Stamina` Comm property.
 ]=]
 
+--[=[
+	@prop AnimationTracks {[AnimationKind]: AnimationTrack}
+	@within Outworlder
+	Cache of `AnimationTrack`s lazily loaded by `AnimationPlay`. Keyed by
+	`AnimationKind` from `AnimationDefs`.
+]=]
+
 function Outworlder:Construct()
 	self.CurrentAction = nil :: Action?
 	self.Trove = Trove.new()
+	self.AnimationTracks = {} :: { [AnimationKind]: AnimationTrack }
+	self.Animator = nil :: Animator?
 
 	local player = Players:GetPlayerFromCharacter(self.Instance)
 	assert(player ~= nil, `Outworlder character has no associated player: {self.Instance:GetFullName()}`)
@@ -103,6 +114,7 @@ function Outworlder:Stop()
 		self.CurrentAction:Stop("Interrupted")
 		self.CurrentAction = nil
 	end
+	self:AnimationStopHardAll()
 	self.Trove:Destroy()
 end
 
@@ -175,6 +187,91 @@ function Outworlder:HandleRequestSetMovementMode(mode: MovementMode): boolean
 	end
 	self:SetMovementMode(mode)
 	return true
+end
+
+--[=[
+	Returns the character's `Animator`, lazily resolving it from the Humanoid on
+	first access and caching the result.
+	@within Outworlder
+	@server
+	@return Animator
+]=]
+function Outworlder:GetAnimator(): Animator
+	if self.Animator ~= nil then
+		return self.Animator
+	end
+	local humanoid = self.Instance:FindFirstChildOfClass("Humanoid") :: Humanoid
+	local animator = humanoid:FindFirstChildOfClass("Animator") :: Animator
+	self.Animator = animator
+	return animator
+end
+
+local function getOrLoadTrack(self, kind: AnimationKind): AnimationTrack
+	local track = self.AnimationTracks[kind]
+	if track ~= nil then
+		return track
+	end
+	local animation = AnimationDefs[kind]
+	track = self:GetAnimator():LoadAnimation(animation)
+	self.AnimationTracks[kind] = track
+	return track
+end
+
+--[=[
+	Plays the animation identified by `kind`, loading it on first use. Any extra
+	arguments are forwarded to `AnimationTrack:Play` (e.g. `fadeTime`, `weight`,
+	`speed`).
+	@within Outworlder
+	@server
+	@param kind AnimationKind
+]=]
+function Outworlder:AnimationPlay(kind: AnimationKind, ...: any)
+	getOrLoadTrack(self, kind):Play(...)
+end
+
+--[=[
+	Stops the animation identified by `kind`. Returns silently if the track was
+	never loaded — stopping an animation we are definitely not playing is a
+	no-op. Extra arguments are forwarded to `AnimationTrack:Stop` (`fadeTime`).
+	@within Outworlder
+	@server
+	@param kind AnimationKind
+]=]
+function Outworlder:AnimationStop(kind: AnimationKind, ...: any)
+	local track = self.AnimationTracks[kind]
+	if track == nil then
+		return
+	end
+	track:Stop(...)
+end
+
+--[=[
+	Stops the animation identified by `kind` immediately by zeroing its weight
+	before stopping with no fade. Returns silently if the track was never loaded.
+	@within Outworlder
+	@server
+	@param kind AnimationKind
+]=]
+function Outworlder:AnimationStopHard(kind: AnimationKind)
+	local track = self.AnimationTracks[kind]
+	if track == nil then
+		return
+	end
+	track:AdjustWeight(0, 0)
+	track:Stop(0)
+end
+
+--[=[
+	Hard-stops every cached animation track. Used to forcibly clear all
+	animation state (e.g. on action interrupt).
+	@within Outworlder
+	@server
+]=]
+function Outworlder:AnimationStopHardAll()
+	for _, track in self.AnimationTracks do
+		track:AdjustWeight(0, 0)
+		track:Stop(0)
+	end
 end
 
 function Outworlder:HeartbeatUpdate(dt: number)

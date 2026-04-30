@@ -1,8 +1,19 @@
 # Rules
 
 - Run `stylua <file>` on every modified Lua or Luau file.
+- Type-check with `luau-lsp analyze` (the batch CLI, not the long-running `lsp` server). Always pass `--sourcemap=sourcemap.json --defs=<roblox global types> --platform=roblox --no-strict-dm-types --ignore="Packages/**" --ignore="**/_Index/**"` — without sourcemap + defs the run reports false positives like `Unknown global 'game'` that drown out real diagnostics.
 - Use PascalCase for module tables, their public methods, exported names, and all instance fields (`self.*`). Use camelCase only for private module-level functions and purely local variables within a function scope. No underscore prefixes for private members.
 - Prefer `x ~= nil` / `x == nil` over `not x` / `if x` when the intent is a nil check.
+- Prefer `vector:FuzzyEq(Vector3.zero)` over `vector.Magnitude > epsilon` for is-this-vector-zero checks. Skips a `sqrt`, and `FuzzyEq`'s default tolerance matches input-deadzone semantics better than an arbitrary threshold.
+- `Trove` conventions:
+  - `return trove:WrapClean()` instead of `return function() trove:Destroy() end`.
+  - Use `parent:Remove(subTrove)` to dispose a `Trove:Extend()`'d sub-trove. Calling `subTrove:Destroy()` cleans the children but leaves a dead reference accumulating in the parent.
+  - `trove:AddPromise(p)` for cancelable async chains; cancellation propagates through `:andThen`/`:catch` if no other consumer holds the upstream Promise.
+- For systems where the client predicts state optimistically and the server is authoritative (e.g. `OutworlderShared.luau`), put the deterministic state-to-state math (mode-to-speed lookups, drain rates, validity checks) in a pure-function `*Shared.luau` module that both sides call. Keeps the predictive and authoritative paths from drifting on rate constants or thresholds.
+- A `Types.luau` module that exports a string-literal union (`SkillKind`, `EquipmentSlot`, `MovementMode`) should also export:
+  - `Kinds` / `Slots` / `Modes` — `table.freeze`d ordered list, used for iteration and UI display order.
+  - `KindSet` / `SlotSet` / `ModeSet` — `{[string]: true}` for O(1) membership validation server-side.
+  - `Default*` — the initial value used to seed new players' data.
 - Edit code by modifying files in this repository, not via the Roblox Studio MCP. The repo is synced into Studio via Rojo.
 - Use absolute `require` paths whenever possible — start from a service like `ReplicatedStorage` or `ServerScriptService` (e.g. `require(ServerScriptService.Server.Servers.DataServer)`), not relative paths like `script.Parent.DataServer`. The only acceptable exception is when the path must be resolved at runtime via `:WaitForChild` because the target may not yet exist.
 - Document public interfaces (module functions, exported types, public properties) with Moonwave-style `--[=[...]=]` block comments. Plain `--` comments are fine for private helpers and inline logic notes. Moonwave tag usage:

@@ -6,7 +6,9 @@ local Container = require(ReplicatedStorage.Shared.React.Common.Container)
 local GridLayout = require(ReplicatedStorage.Shared.React.Common.GridLayout)
 local Label = require(ReplicatedStorage.Shared.React.Common.Label)
 local ColorDefs = require(ReplicatedStorage.Shared.Defs.ColorDefs)
+local ContextMenuActions = require(ReplicatedStorage.Shared.React.ContextMenuActions)
 local ContextMenuContext = require(ReplicatedStorage.Shared.React.ContextMenuContext)
+local DragOrTap = require(ReplicatedStorage.Shared.React.DragOrTap)
 local EquipmentClient = require(ReplicatedStorage.Shared.Clients.EquipmentClient)
 local EquipmentTypes = require(ReplicatedStorage.Shared.Types.EquipmentTypes)
 local InventoryTypes = require(ReplicatedStorage.Shared.Types.InventoryTypes)
@@ -79,41 +81,32 @@ local function EquipmentSlotComponent(props: SlotProps)
 					return
 				end
 
-				if input.UserInputType == Enum.UserInputType.MouseButton2 then
+				if input.UserInputType == Enum.UserInputType.MouseButton1 then
+					local action = ContextMenuActions.FindClickAction(buildActions())
+					if action ~= nil then
+						action.OnSelect()
+					end
+				elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
 					openMenu(UserInputService:GetMouseLocation())
 				elseif
 					input.UserInputType == Enum.UserInputType.Touch
 					and input.UserInputState == Enum.UserInputState.Begin
 				then
-					local startPos = Vector2.new(input.Position.X, input.Position.Y)
-					local cancelled = false
 					local touchInput = input
-
-					local movedConn: RBXScriptConnection
-					local endedConn: RBXScriptConnection
-
-					movedConn = UserInputService.InputChanged:Connect(function(changedInput)
-						if changedInput ~= touchInput then
-							return
-						end
-						local delta = Vector2.new(changedInput.Position.X, changedInput.Position.Y) - startPos
-						if delta.Magnitude > TAP_THRESHOLD then
-							cancelled = true
-							movedConn:Disconnect()
-							endedConn:Disconnect()
-						end
-					end)
-
-					endedConn = UserInputService.InputEnded:Connect(function(endedInput)
-						if endedInput ~= touchInput then
-							return
-						end
-						movedConn:Disconnect()
-						endedConn:Disconnect()
-						if not cancelled then
+					DragOrTap.Track({
+						StartPos = Vector2.new(input.Position.X, input.Position.Y),
+						IsMove = function(i)
+							return i == touchInput
+						end,
+						IsRelease = function(i)
+							return i == touchInput
+						end,
+						Threshold = TAP_THRESHOLD,
+						OnDrag = function() end,
+						OnTap = function()
 							openMenu(UserInputService:GetMouseLocation())
-						end
-					end)
+						end,
+					})
 				end
 			end,
 		},

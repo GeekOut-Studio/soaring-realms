@@ -6,8 +6,10 @@ local Container = require(ReplicatedStorage.Shared.React.Common.Container)
 local GridLayout = require(ReplicatedStorage.Shared.React.Common.GridLayout)
 local Label = require(ReplicatedStorage.Shared.React.Common.Label)
 local ColorDefs = require(ReplicatedStorage.Shared.Defs.ColorDefs)
+local ContextMenuActions = require(ReplicatedStorage.Shared.React.ContextMenuActions)
 local ContextMenuContext = require(ReplicatedStorage.Shared.React.ContextMenuContext)
 local DragContext = require(ReplicatedStorage.Shared.React.DragContext)
+local DragOrTap = require(ReplicatedStorage.Shared.React.DragOrTap)
 local EquipmentClient = require(ReplicatedStorage.Shared.Clients.EquipmentClient)
 local EquipmentTypes = require(ReplicatedStorage.Shared.Types.EquipmentTypes)
 local InventoryClient = require(ReplicatedStorage.Shared.Clients.InventoryClient)
@@ -84,6 +86,7 @@ local function InventorySlot(props: SlotProps)
 			OnSelect = function()
 				InventoryClient.DropItem(slotKey)
 			end,
+			Destructive = true,
 		})
 
 		return actions
@@ -108,8 +111,28 @@ local function InventorySlot(props: SlotProps)
 					return
 				end
 
-				if input.UserInputType == Enum.UserInputType.MouseButton1 and dragContext.DragState == nil then
+				local function beginDrag()
 					dragContext.BeginDrag(item, "Inventory", props.SlotKey)
+				end
+
+				if input.UserInputType == Enum.UserInputType.MouseButton1 and dragContext.DragState == nil then
+					DragOrTap.Track({
+						StartPos = Vector2.new(input.Position.X, input.Position.Y),
+						IsMove = function(i)
+							return i.UserInputType == Enum.UserInputType.MouseMovement
+						end,
+						IsRelease = function(i)
+							return i.UserInputType == Enum.UserInputType.MouseButton1
+						end,
+						Threshold = DRAG_THRESHOLD,
+						OnDrag = beginDrag,
+						OnTap = function()
+							local action = ContextMenuActions.FindClickAction(buildActions(props.SlotKey))
+							if action ~= nil then
+								action.OnSelect()
+							end
+						end,
+					})
 				elseif input.UserInputType == Enum.UserInputType.MouseButton2 and dragContext.DragState == nil then
 					openMenu(UserInputService:GetMouseLocation())
 				elseif
@@ -117,36 +140,21 @@ local function InventorySlot(props: SlotProps)
 					and input.UserInputState == Enum.UserInputState.Begin
 					and dragContext.DragState == nil
 				then
-					local startPos = Vector2.new(input.Position.X, input.Position.Y)
-					local dragStarted = false
 					local touchInput = input
-
-					local movedConn: RBXScriptConnection
-					local endedConn: RBXScriptConnection
-
-					movedConn = UserInputService.InputChanged:Connect(function(changedInput)
-						if changedInput ~= touchInput then
-							return
-						end
-						local delta = Vector2.new(changedInput.Position.X, changedInput.Position.Y) - startPos
-						if delta.Magnitude > DRAG_THRESHOLD and not dragStarted then
-							dragStarted = true
-							movedConn:Disconnect()
-							endedConn:Disconnect()
-							dragContext.BeginDrag(item, "Inventory", props.SlotKey)
-						end
-					end)
-
-					endedConn = UserInputService.InputEnded:Connect(function(endedInput)
-						if endedInput ~= touchInput then
-							return
-						end
-						movedConn:Disconnect()
-						endedConn:Disconnect()
-						if not dragStarted then
+					DragOrTap.Track({
+						StartPos = Vector2.new(input.Position.X, input.Position.Y),
+						IsMove = function(i)
+							return i == touchInput
+						end,
+						IsRelease = function(i)
+							return i == touchInput
+						end,
+						Threshold = DRAG_THRESHOLD,
+						OnDrag = beginDrag,
+						OnTap = function()
 							openMenu(UserInputService:GetMouseLocation())
-						end
-					end)
+						end,
+					})
 				end
 			end,
 		},

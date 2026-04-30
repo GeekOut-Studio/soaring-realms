@@ -9,10 +9,12 @@ local e = React.createElement
 	@within ContextMenuContext
 	@field Label string -- Displayed text for the action.
 	@field OnSelect () -> () -- Called when the user chooses this action.
+	@field Destructive boolean? -- When true, excluded from `FindClickAction` so left-click can't trigger it.
 ]=]
 export type ContextMenuAction = {
 	Label: string,
 	OnSelect: () -> (),
+	Destructive: boolean?,
 }
 
 --[=[

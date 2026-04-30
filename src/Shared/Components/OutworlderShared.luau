@@ -41,6 +41,19 @@ function OutworlderShared.IsMoving(controllerManager: ControllerManager): boolea
 end
 
 --[=[
+	Returns whether the character is currently being driven by its `GroundController`
+	(as opposed to airborne / swimming / climbing). Used to gate ground-only behaviors
+	like crouch-walk animation playback and to detect jumps/falls for crouch exit.
+	@within OutworlderShared
+	@param controllerManager ControllerManager
+	@return boolean
+]=]
+function OutworlderShared.IsGrounded(controllerManager: ControllerManager): boolean
+	local active = controllerManager.ActiveController
+	return active ~= nil and active:IsA("GroundController")
+end
+
+--[=[
 	Advances stamina by `dt` seconds.
 
 	If `mode == "Sprint"` and `isMoving`, drains by `SprintStaminaDrainPerSecond` and

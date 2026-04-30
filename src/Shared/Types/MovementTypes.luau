@@ -84,4 +84,13 @@ MovementTypes.StaminaRegenPerSecond = 10
 ]=]
 MovementTypes.StaminaReplicationInterval = 0.1
 
+--[=[
+	@prop CrouchAirborneGraceSeconds number
+	@within MovementTypes
+	Time the character may remain airborne while in `Crouch` before being forced back to
+	`Walk`. Provides hysteresis so `ActiveController` flickering on small terrain bumps
+	doesn't repeatedly cancel a crouch.
+]=]
+MovementTypes.CrouchAirborneGraceSeconds = 0.15
+
 return MovementTypes

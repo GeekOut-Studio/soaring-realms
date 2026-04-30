@@ -85,6 +85,7 @@ function OutworlderClient:Construct()
 
 	self.Stamina = MovementTypes.MaxStamina
 	self.StaminaChanged = self.Trove:Construct(Signal) :: Signal.Signal<number>
+	self.WasMoving = false
 
 	self.Comm = Comm.ClientComm.new(self.Instance, false, "Outworlder")
 	self.Trove:Add(self.Comm)
@@ -167,6 +168,17 @@ function OutworlderClient:HandleInput(input: InputObject)
 end
 
 --[=[
+	Returns whether the sprint input is currently held. Wraps the keyboard check so a
+	future mobile sprint button can OR its state in here without touching the rest of
+	the sprint logic.
+	@within OutworlderClient
+	@return boolean
+]=]
+function OutworlderClient:IsSprintInputDown(): boolean
+	return UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
+end
+
+--[=[
 	Toggles between Sprint and Walk based on the currently-replicated mode.
 	@within OutworlderClient
 ]=]
@@ -210,27 +222,36 @@ function OutworlderClient:SetMovementMode(mode: MovementMode)
 end
 
 --[=[
-	Per-frame tick that handles two sprint cancellation paths and the predictive stamina
-	drain:
+	Per-frame tick that handles three things:
 
-	1. If `MovementMode == "Sprint"` and `MovingDirection` is zero, request `Walk`
-	   (covers "released movement keys" / "stopped moving").
-	2. Otherwise, drain `Stamina` via `OutworlderShared.StepStamina` (no regen on the
-	   client — server-replicated values handle that). If stamina hits zero, request
-	   `Walk` immediately so the player feels the slowdown without a roundtrip.
+	1. Movement-start sprint trigger: on the frame `MovingDirection` transitions from
+	   zero to non-zero, if the player is holding `LeftShift` (and has stamina), enter
+	   Sprint. This makes "hold shift, then start moving" feel like sprint-on-press
+	   without needing a separate "intent" flag.
+	2. Sprint cancel on stop: while in Sprint, `MovingDirection == 0` requests Walk.
+	3. Predictive stamina drain via `OutworlderShared.StepStamina` (no regen on the
+	   client — server-replicated values handle that). If stamina hits zero, requests
+	   Walk immediately so the player feels the slowdown without a roundtrip.
 
-	Server replication of `Stamina` will hard-snap our `Stamina` to the authoritative
-	value via the `observeCommProperty` subscription set up in `SetupLocalControls`.
+	Server replication of `Stamina` will hard-snap our value to the authoritative one
+	via the `observeCommProperty` subscription set up in `SetupLocalControls`.
 	@within OutworlderClient
 	@param dt number
 ]=]
 function OutworlderClient:SprintTick(dt: number)
+	local isMoving = OutworlderShared.IsMoving(self.ControllerManager)
 	local mode = self.MovementModeProperty:Get() :: MovementMode
+
+	if isMoving and not self.WasMoving and mode ~= "Sprint" and self.Stamina > 0 and self:IsSprintInputDown() then
+		self:SetMovementMode("Sprint")
+		mode = "Sprint"
+	end
+	self.WasMoving = isMoving
+
 	if mode ~= "Sprint" then
 		return
 	end
 
-	local isMoving = OutworlderShared.IsMoving(self.ControllerManager)
 	if not isMoving then
 		self:SetMovementMode("Walk")
 		return

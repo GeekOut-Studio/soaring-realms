@@ -81,6 +81,7 @@ function Outworlder:Construct()
 	self.MovementMode = MovementTypes.DefaultMode :: MovementMode
 	self.Stamina = MovementTypes.MaxStamina
 	self.StaminaSendAccumulator = 0
+	self.AirborneAccumulator = 0
 
 	self.Comm:BindFunction("RequestSetMovementMode", function(callingPlayer, mode)
 		if callingPlayer ~= self.Player then
@@ -173,7 +174,9 @@ end
 
 --[=[
 	Validates a client request to change movement mode.
-	Sprint requests are rejected when stamina is exhausted; all other transitions accept.
+	Sprint requests are rejected when stamina is exhausted. Crouch requests are rejected
+	when the character is airborne so we never enter a crouch in mid-air. All other
+	transitions accept.
 	@within Outworlder
 	@param mode MovementMode
 	@return boolean -- `true` if the request was accepted.
@@ -183,6 +186,9 @@ function Outworlder:HandleRequestSetMovementMode(mode: MovementMode): boolean
 		return false
 	end
 	if mode == "Sprint" and self.Stamina <= 0 then
+		return false
+	end
+	if mode == "Crouch" and not OutworlderShared.IsGrounded(self.ControllerManager) then
 		return false
 	end
 	self:SetMovementMode(mode)
@@ -274,6 +280,39 @@ function Outworlder:AnimationStopHardAll()
 	end
 end
 
+--[=[
+	Returns whether the track for `kind` is currently loaded and playing. Returns
+	`false` if the track was never loaded — consistent with the cache-or-nothing
+	semantics of the rest of the animation API.
+	@within Outworlder
+	@server
+	@param kind AnimationKind
+	@return boolean
+]=]
+function Outworlder:AnimationIsPlaying(kind: AnimationKind): boolean
+	local track = self.AnimationTracks[kind]
+	return track ~= nil and track.IsPlaying
+end
+
+local function updateCrouchAnimations(self, isGrounded: boolean, isMoving: boolean)
+	local inCrouch = self.MovementMode == "Crouch"
+	local wantIdle = inCrouch
+	local wantWalk = inCrouch and isMoving and isGrounded
+
+	if not wantWalk and self:AnimationIsPlaying("CrouchWalk") then
+		self:AnimationStop("CrouchWalk")
+	end
+	if not wantIdle and self:AnimationIsPlaying("CrouchIdle") then
+		self:AnimationStop("CrouchIdle")
+	end
+	if wantIdle and not self:AnimationIsPlaying("CrouchIdle") then
+		self:AnimationPlay("CrouchIdle")
+	end
+	if wantWalk and not self:AnimationIsPlaying("CrouchWalk") then
+		self:AnimationPlay("CrouchWalk")
+	end
+end
+
 function Outworlder:HeartbeatUpdate(dt: number)
 	if self.CurrentAction ~= nil then
 		local result = self.CurrentAction:Update(dt)
@@ -287,10 +326,27 @@ function Outworlder:HeartbeatUpdate(dt: number)
 	end
 
 	local isMoving = OutworlderShared.IsMoving(self.ControllerManager)
+	local isGrounded = OutworlderShared.IsGrounded(self.ControllerManager)
 	self.Stamina = OutworlderShared.StepStamina(self.Stamina, self.MovementMode, isMoving, dt, true)
 	if self.MovementMode == "Sprint" and self.Stamina <= 0 then
 		self:SetMovementMode("Walk")
 	end
+
+	if self.MovementMode == "Crouch" then
+		if isGrounded then
+			self.AirborneAccumulator = 0
+		else
+			self.AirborneAccumulator += dt
+			if self.AirborneAccumulator >= MovementTypes.CrouchAirborneGraceSeconds then
+				self.AirborneAccumulator = 0
+				self:SetMovementMode("Walk")
+			end
+		end
+	else
+		self.AirborneAccumulator = 0
+	end
+
+	updateCrouchAnimations(self, isGrounded, isMoving)
 
 	self.StaminaSendAccumulator += dt
 	if self.StaminaSendAccumulator >= MovementTypes.StaminaReplicationInterval then

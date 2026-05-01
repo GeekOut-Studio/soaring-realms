@@ -16,7 +16,8 @@ local VerticalList = require(ReplicatedStorage.Shared.React.Common.VerticalList)
 local e = React.createElement
 
 local PADDING = UDim.new(0, 4)
-local BAR_HEIGHT = 20
+local BAR_HEIGHT = 14
+local BUTTON_SIZE = 56
 
 -- TODO: replace with the local Outworlder's authoritative health value once a health
 -- system exists. For now the bar always renders full.
@@ -48,7 +49,7 @@ local function Hotbar()
 			Native = {
 				LayoutOrder = i,
 				Text = tostring(i),
-				Size = UDim2.fromOffset(60, 60),
+				Size = UDim2.fromOffset(BUTTON_SIZE, BUTTON_SIZE),
 			},
 		})
 	end

@@ -54,33 +54,29 @@ function OutworlderShared.IsGrounded(controllerManager: ControllerManager): bool
 end
 
 --[=[
-	Advances stamina by `dt` seconds.
+	Drains stamina for one `dt` step. If `mode == "Sprint"` and `isMoving`,
+	returns `stamina - SprintStaminaDrainPerSecond * dt` clamped to 0.
+	Otherwise returns `stamina` unchanged.
 
-	If `mode == "Sprint"` and `isMoving`, drains by `SprintStaminaDrainPerSecond` and
-	clamps to 0. Otherwise, if `regenAllowed`, regens by `StaminaRegenPerSecond` and
-	clamps to `MaxStamina`. With `regenAllowed = false` the value is left unchanged when
-	not draining — used by the client, which only simulates drain locally and lets the
-	server's replicated value provide regen.
+	Regen is intentionally *not* part of this function: it's authoritative
+	server-only logic (with a delay timer driven by drain edges) and lives on
+	the server-side `Outworlder` component. The client uses this same function
+	to predict drain locally and waits for replication to see regen.
 	@within OutworlderShared
 	@param stamina number
 	@param mode MovementMode
 	@param isMoving boolean
 	@param dt number
-	@param regenAllowed boolean
-	@return number
+	@return number -- new stamina
 ]=]
-function OutworlderShared.StepStamina(
+function OutworlderShared.StepStaminaDrain(
 	stamina: number,
 	mode: MovementTypes.MovementMode,
 	isMoving: boolean,
-	dt: number,
-	regenAllowed: boolean
+	dt: number
 ): number
 	if mode == "Sprint" and isMoving then
 		return math.max(0, stamina - MovementTypes.SprintStaminaDrainPerSecond * dt)
-	end
-	if regenAllowed then
-		return math.min(MovementTypes.MaxStamina, stamina + MovementTypes.StaminaRegenPerSecond * dt)
 	end
 	return stamina
 end

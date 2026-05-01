@@ -253,9 +253,10 @@ end
 	   Sprint. This makes "hold shift, then start moving" feel like sprint-on-press
 	   without needing a separate "intent" flag.
 	2. Sprint cancel on stop: while in Sprint, `MovingDirection == 0` requests Walk.
-	3. Predictive stamina drain via `OutworlderShared.StepStamina` (no regen on the
-	   client — server-replicated values handle that). If stamina hits zero, requests
-	   Walk immediately so the player feels the slowdown without a roundtrip.
+	3. Predictive stamina drain via `OutworlderShared.StepStaminaDrain` (regen is
+	   server-only, so the client only simulates drain and waits for replication
+	   to learn about regen). If stamina hits zero, requests Walk immediately so
+	   the player feels the slowdown without a roundtrip.
 
 	Server replication of `Stamina` will hard-snap our value to the authoritative one
 	via the `observeCommProperty` subscription set up in `SetupLocalControls`.
@@ -281,8 +282,7 @@ function OutworlderClient:SprintTick(dt: number)
 		return
 	end
 
-	local nextStamina = OutworlderShared.StepStamina(self.Stamina, mode, isMoving, dt, false)
-	self:SetStamina(nextStamina)
+	self:SetStamina(OutworlderShared.StepStaminaDrain(self.Stamina, mode, isMoving, dt))
 	if self.Stamina <= 0 then
 		self:SetMovementMode("Walk")
 	end

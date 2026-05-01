@@ -77,6 +77,15 @@ MovementTypes.SprintStaminaDrainPerSecond = 25
 MovementTypes.StaminaRegenPerSecond = 10
 
 --[=[
+	@prop StaminaRegenDelaySeconds number
+	@within MovementTypes
+	Time the character must go without consuming stamina before regen kicks in.
+	Any drain tick resets this delay so a brief stop-and-start doesn't refund
+	the player a free chunk of stamina mid-sprint.
+]=]
+MovementTypes.StaminaRegenDelaySeconds = 1.5
+
+--[=[
 	@prop StaminaReplicationInterval number
 	@within MovementTypes
 	Server-side throttle for replicating Stamina to the owning client (seconds between

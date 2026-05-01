@@ -85,6 +85,16 @@ MovementTypes.StaminaRegenPerSecond = 10
 MovementTypes.StaminaReplicationInterval = 0.1
 
 --[=[
+	@prop JumpVelocity number
+	@within MovementTypes
+	Vertical velocity (studs/second) imparted to the character's root assembly when
+	a jump is triggered. Replaces the legacy `Humanoid.JumpPower` knob, since the
+	Character Controller Library bypasses the Humanoid state machine and we drive
+	jumps by writing `AssemblyLinearVelocity.Y` directly.
+]=]
+MovementTypes.JumpVelocity = 50
+
+--[=[
 	@prop CrouchAirborneGraceSeconds number
 	@within MovementTypes
 	Time the character may remain airborne while in `Crouch` before being forced back to

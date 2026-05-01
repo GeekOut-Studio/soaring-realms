@@ -2,6 +2,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local React = require(ReplicatedStorage.Packages.React)
 local Sift = require(ReplicatedStorage.Packages.Sift)
+local ColorDefs = require(ReplicatedStorage.Shared.Defs.ColorDefs)
 local FontDefs = require(ReplicatedStorage.Shared.Defs.FontDefs)
 
 local e = React.createElement
@@ -17,7 +18,7 @@ return function(props: {
 			BackgroundTransparency = 1,
 			Size = UDim2.fromScale(1, 1),
 			FontFace = FontDefs.Normal,
-			TextColor3 = Color3.new(1, 1, 1),
+			TextColor3 = ColorDefs.TextPrimary,
 			TextSize = 20,
 		}, props.Native),
 		props.children

@@ -168,6 +168,30 @@ function OutworlderClient:HandleInput(input: InputObject)
 end
 
 --[=[
+	Triggers a jump on the local character. Client-authoritative: we trust the
+	player here so mobile/touch jumps feel responsive without a roundtrip. No-op
+	when airborne so jump can't be used to double-jump.
+
+	Drives the jump by writing `AssemblyLinearVelocity.Y` on the ControllerManager's
+	root part rather than `Humanoid:ChangeState(Jumping)`, because the Character
+	Controller Library bypasses the Humanoid state machine — `ChangeState` is a
+	no-op while `ControllerManager` is the one driving locomotion. Horizontal
+	velocity is preserved so the character keeps its current run momentum.
+	@within OutworlderClient
+]=]
+function OutworlderClient:Jump()
+	if not OutworlderShared.IsGrounded(self.ControllerManager) then
+		return
+	end
+	local rootPart = self.ControllerManager.RootPart
+	if rootPart == nil then
+		return
+	end
+	local current = rootPart.AssemblyLinearVelocity
+	rootPart.AssemblyLinearVelocity = Vector3.new(current.X, MovementTypes.JumpVelocity, current.Z)
+end
+
+--[=[
 	Returns whether the sprint input is currently held. Wraps the keyboard check so a
 	future mobile sprint button can OR its state in here without touching the rest of
 	the sprint logic.

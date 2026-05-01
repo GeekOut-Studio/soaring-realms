@@ -5,6 +5,7 @@ local Container = require(ReplicatedStorage.Shared.React.Common.Container)
 local PaddingAll = require(ReplicatedStorage.Shared.React.Common.PaddingAll)
 local Hotbar = require(ReplicatedStorage.Shared.React.Hud.Hotbar)
 local Menus = require(ReplicatedStorage.Shared.React.Hud.Menus)
+local MobileControls = require(ReplicatedStorage.Shared.React.Hud.MobileControls)
 
 local e = React.createElement
 
@@ -20,6 +21,7 @@ local function Hud()
 		}),
 		Menus = e(Menus),
 		Hotbar = e(Hotbar),
+		MobileControls = e(MobileControls),
 	})
 end
 

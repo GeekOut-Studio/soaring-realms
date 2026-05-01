@@ -16,7 +16,7 @@ local VerticalList = require(ReplicatedStorage.Shared.React.Common.VerticalList)
 local e = React.createElement
 
 local PADDING = UDim.new(0, 4)
-local BAR_HEIGHT = 14
+local BAR_HEIGHT = 10
 local BUTTON_SIZE = 56
 
 -- TODO: replace with the local Outworlder's authoritative health value once a health

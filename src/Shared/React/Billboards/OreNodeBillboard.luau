@@ -81,23 +81,33 @@ local function OreNodeBillboard(props: {
 			},
 		}),
 		Progress = e(ProgressBar, {
-			Native = {
+			FrameNative = {
 				LayoutOrder = 2,
 				Size = UDim2.fromScale(1, BAR_HEIGHT_SCALE),
 			},
-			FillColor = ColorDefs.ActionBarFill,
+			BarNative = {
+				BackgroundColor3 = ColorDefs.ActionBarFill,
+			},
+			LabelNative = {
+				Text = "Progress",
+				TextScaled = true,
+			},
 			Alpha = progressBinding,
-			Label = "Progress",
 		}),
 		Break = if showBreak
 			then e(ProgressBar, {
-				Native = {
+				FrameNative = {
 					LayoutOrder = 1,
 					Size = UDim2.fromScale(1, BAR_HEIGHT_SCALE),
 				},
-				FillColor = ColorDefs.HealthBarFill,
+				BarNative = {
+					BackgroundColor3 = ColorDefs.HealthBarFill,
+				},
+				LabelNative = {
+					Text = "Break",
+					TextScaled = true,
+				},
 				Alpha = breakBinding,
-				Label = "Break",
 			})
 			else nil,
 	})

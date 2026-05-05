@@ -90,12 +90,16 @@ local function ActionProgressBar(props: {
 	end
 
 	return e(ProgressBar, {
-		Native = merge({
+		FrameNative = merge({
 			Size = UDim2.fromOffset(0, BAR_HEIGHT),
 		}, props.Native),
-		FillColor = ColorDefs.ActionBarFill,
+		BarNative = {
+			BackgroundColor3 = ColorDefs.ActionBarFill,
+		},
+		LabelNative = {
+			Text = progress.Name,
+		},
 		Alpha = fillBinding,
-		Label = progress.Name,
 	})
 end
 

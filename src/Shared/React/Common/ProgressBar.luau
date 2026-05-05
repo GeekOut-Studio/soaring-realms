@@ -2,9 +2,16 @@
 
 --[=[
 	@class ProgressBar
-	A black-background-with-colored-fill bar with an optional label-in-bar (text +
-	stroke). Used both in screen-space HUD elements (`ActionProgressBar`) and in
+	A black-background-with-colored-fill bar with an optional label-in-bar (text
+	plus stroke). Used in screen-space HUD elements (`ActionProgressBar`) and in
 	world-space billboards (`OreNodeBillboard`).
+
+	Each of the three sub-elements takes its own `Native` prop:
+	- `FrameNative` — the outer container Frame. Merge target for layout (`Size`,
+	  `LayoutOrder`, `Position`) and background color overrides.
+	- `BarNative` — the inner fill Frame. Merge target for fill color, border, etc.
+	  `Size` is host-controlled (driven by `Alpha`) and silently overridden.
+	- `LabelNative` — props for the `Label` text. `nil` to omit the label entirely.
 
 	`Alpha` may be a plain number or a React binding — bindings let callers drive
 	the fill width per-Heartbeat without re-rendering the surrounding subtree.
@@ -23,10 +30,10 @@ local e = React.createElement
 local merge = Sift.Dictionary.merge
 
 local function ProgressBar(props: {
-	Native: any,
-	FillColor: Color3,
+	FrameNative: any,
+	BarNative: any,
+	LabelNative: any?,
 	Alpha: number | React.Binding<number>,
-	Label: string?,
 }): any
 	local alpha = props.Alpha
 	local fillSize: any
@@ -43,19 +50,21 @@ local function ProgressBar(props: {
 		merge({
 			BorderSizePixel = 0,
 			BackgroundColor3 = ColorDefs.Black,
-		}, props.Native),
+		}, props.FrameNative),
 		{
-			Fill = e("Frame", {
-				BorderSizePixel = 0,
-				BackgroundColor3 = props.FillColor,
-				Size = fillSize,
-			}),
-			LabelHolder = if props.Label ~= nil
+			Fill = e(
+				"Frame",
+				merge(
+					merge({
+						BorderSizePixel = 0,
+						BackgroundColor3 = Color3.new(1, 1, 1),
+					}, props.BarNative or {}),
+					{ Size = fillSize }
+				)
+			),
+			LabelHolder = if props.LabelNative ~= nil
 				then e(Label, {
-					Native = {
-						Text = props.Label,
-						ZIndex = 2,
-					},
+					Native = merge({ ZIndex = 2 }, props.LabelNative),
 				}, {
 					Stroke = e(TextStroke, { Native = {} }),
 				})

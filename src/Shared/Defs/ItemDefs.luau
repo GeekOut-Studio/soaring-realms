@@ -24,13 +24,13 @@ local Defs = {
 	Stone = {
 		Name = "Stone",
 	},
-	CopperOre = {
+	OreCopper = {
 		Name = "Copper Ore",
 	},
-	CopperIngot = {
-		Name = "Copper Ingot",
+	BarCopper = {
+		Name = "Copper Bar",
 	},
-	CopperSword = {
+	SwordCopper = {
 		Name = "Copper Sword",
 		EquipSlots = { "MainHandMelee" },
 		AssetPath = "Base/Weapons/SwordCopper",

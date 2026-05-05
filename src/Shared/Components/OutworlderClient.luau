@@ -25,6 +25,7 @@ local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local DownloadClient = require(ReplicatedStorage.Shared.Clients.DownloadClient)
 local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
+local ActionTypes = require(ReplicatedStorage.Shared.Types.ActionTypes)
 local EquipmentTypes = require(ReplicatedStorage.Shared.Types.EquipmentTypes)
 local InventoryTypes = require(ReplicatedStorage.Shared.Types.InventoryTypes)
 local MovementTypes = require(ReplicatedStorage.Shared.Types.MovementTypes)
@@ -35,6 +36,7 @@ type EquipmentSlot = EquipmentTypes.EquipmentSlot
 type Equipment = EquipmentTypes.Equipment
 type Item = InventoryTypes.Item
 type MovementMode = MovementTypes.MovementMode
+type ActionProgress = ActionTypes.ActionProgress
 
 local WAIT_FOR_CHILD_TIMEOUT = 10
 
@@ -85,6 +87,8 @@ function OutworlderClient:Construct()
 
 	self.Stamina = MovementTypes.MaxStamina
 	self.StaminaChanged = self.Trove:Construct(Signal) :: Signal.Signal<number>
+	self.ActionProgress = nil :: ActionProgress?
+	self.ActionProgressChanged = self.Trove:Construct(Signal) :: Signal.Signal<ActionProgress?>
 	self.WasMoving = false
 
 	self.Comm = Comm.ClientComm.new(self.Instance, false, "Outworlder")
@@ -92,6 +96,7 @@ function OutworlderClient:Construct()
 	self.EquipmentProperty = self.Comm:GetProperty("Equipment")
 	self.MovementModeProperty = self.Comm:GetProperty("MovementMode")
 	self.StaminaProperty = self.Comm:GetProperty("Stamina")
+	self.ActionProgressProperty = self.Comm:GetProperty("ActionProgress")
 	self.RequestSetMovementModeFunction = self.Comm:GetFunction("RequestSetMovementMode")
 end
 
@@ -138,6 +143,11 @@ end
 function OutworlderClient:SetupLocalControls()
 	self.Trove:Add(Observing.observeCommProperty(self.StaminaProperty, function(stamina: number)
 		self:SetStamina(stamina)
+	end))
+
+	self.Trove:Add(Observing.observeCommProperty(self.ActionProgressProperty, function(progress: ActionProgress?)
+		self.ActionProgress = progress
+		self.ActionProgressChanged:Fire(progress)
 	end))
 
 	self.Trove:Connect(UserInputService.InputBegan, function(input: InputObject, processed: boolean)

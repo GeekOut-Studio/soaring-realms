@@ -5,6 +5,7 @@ local Observers = require(ReplicatedStorage.Packages.Observers)
 local React = require(ReplicatedStorage.Packages.React)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
+local ActionProgressBar = require(ReplicatedStorage.Shared.React.Hud.ActionProgressBar)
 local ColorDefs = require(ReplicatedStorage.Shared.Defs.ColorDefs)
 local Container = require(ReplicatedStorage.Shared.React.Common.Container)
 local HorizontalList = require(ReplicatedStorage.Shared.React.Common.HorizontalList)
@@ -107,6 +108,11 @@ local function Hotbar()
 				BackgroundColor3 = ColorDefs.HealthBarFill,
 				Size = UDim2.fromScale(healthFraction, 1),
 			}),
+		}),
+		ActionProgress = e(ActionProgressBar, {
+			Native = {
+				LayoutOrder = -4,
+			},
 		}),
 	})
 end

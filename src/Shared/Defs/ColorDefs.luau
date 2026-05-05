@@ -9,4 +9,5 @@ return {
 	TextPrimary = Color3.fromRGB(215, 215, 215),
 	StaminaBarFill = Color3.fromRGB(220, 200, 60),
 	HealthBarFill = Color3.fromRGB(200, 60, 60),
+	ActionBarFill = Color3.fromRGB(235, 235, 235),
 }

@@ -280,12 +280,16 @@ function OreNode:BeginMining(player: Player, outworlder: any, entry: NodeEntry)
 	local elapsed = 0
 
 	local action: Action = {
+		Name = "Mining",
 		AllowsMovement = false,
-		Update = function(_self, dt)
+		CompletionTimestamp = Workspace:GetServerTimeNow() + SWING_INTERVAL,
+		Alpha = nil,
+		Update = function(actionSelf, dt)
 			elapsed += dt
 			while elapsed >= SWING_INTERVAL do
 				elapsed -= SWING_INTERVAL
 				node:OnHit(player, entry)
+				actionSelf.CompletionTimestamp = Workspace:GetServerTimeNow() + SWING_INTERVAL
 			end
 			return ActionTypes.Result.Continue
 		end,

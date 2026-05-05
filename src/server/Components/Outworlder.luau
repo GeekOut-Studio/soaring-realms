@@ -77,12 +77,14 @@ function Outworlder:Construct()
 	self.EquipmentProperty = self.Comm:CreateProperty("Equipment", EquipmentTypes.DefaultEquipment)
 	self.MovementModeProperty = self.Comm:CreateProperty("MovementMode", MovementTypes.DefaultMode)
 	self.StaminaProperty = self.Comm:CreateProperty("Stamina", MovementTypes.MaxStamina)
+	self.ActionProgressProperty = self.Comm:CreateProperty("ActionProgress", nil)
 
 	self.MovementMode = MovementTypes.DefaultMode :: MovementMode
 	self.Stamina = MovementTypes.MaxStamina
 	self.StaminaRegenTimer = 0
 	self.StaminaSendAccumulator = 0
 	self.AirborneAccumulator = 0
+	self.LastActionProgress = nil :: ActionTypes.ActionProgress?
 
 	self.Comm:BindFunction("RequestSetMovementMode", function(callingPlayer, mode)
 		if callingPlayer ~= self.Player then
@@ -130,6 +132,43 @@ function Outworlder:StartAction(action: Action)
 		self.CurrentAction:Stop("Interrupted")
 	end
 	self.CurrentAction = action
+end
+
+--[=[
+	Computes the current action's `ActionProgress` payload and replicates it to the
+	owning player only when it differs from the last value sent. Pushes `nil` when
+	there is no action, or the action exposes neither `CompletionTimestamp` nor
+	`Alpha`. Called every Heartbeat after the action's `Update` runs.
+	@within Outworlder
+	@server
+]=]
+function Outworlder:ReplicateActionProgress()
+	local action = self.CurrentAction
+	local progress: ActionTypes.ActionProgress? = nil
+	if action ~= nil and (action.CompletionTimestamp ~= nil or action.Alpha ~= nil) then
+		progress = {
+			Name = action.Name,
+			CompletionTimestamp = action.CompletionTimestamp,
+			Alpha = action.Alpha,
+		}
+	end
+
+	local last = self.LastActionProgress
+	if progress == nil and last == nil then
+		return
+	end
+	if
+		progress ~= nil
+		and last ~= nil
+		and progress.Name == last.Name
+		and progress.CompletionTimestamp == last.CompletionTimestamp
+		and progress.Alpha == last.Alpha
+	then
+		return
+	end
+
+	self.LastActionProgress = progress
+	self.ActionProgressProperty:SetFor(self.Player, progress)
 end
 
 --[=[
@@ -333,6 +372,8 @@ function Outworlder:HeartbeatUpdate(dt: number)
 			self.CurrentAction = nil
 		end
 	end
+
+	self:ReplicateActionProgress()
 	local drained = OutworlderShared.StepStaminaDrain(self.Stamina, self.MovementMode, isMoving, dt)
 	if drained < self.Stamina then
 		self.Stamina = drained

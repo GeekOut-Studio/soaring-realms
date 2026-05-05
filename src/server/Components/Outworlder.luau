@@ -78,6 +78,7 @@ function Outworlder:Construct()
 	self.MovementModeProperty = self.Comm:CreateProperty("MovementMode", MovementTypes.DefaultMode)
 	self.StaminaProperty = self.Comm:CreateProperty("Stamina", MovementTypes.MaxStamina)
 	self.ActionProgressProperty = self.Comm:CreateProperty("ActionProgress", nil)
+	self.ActionFailedSignal = self.Comm:CreateSignal("ActionFailed")
 
 	self.MovementMode = MovementTypes.DefaultMode :: MovementMode
 	self.Stamina = MovementTypes.MaxStamina
@@ -210,6 +211,19 @@ function Outworlder:SetMovementMode(mode: MovementMode)
 	self.MovementMode = mode
 	OutworlderShared.ApplyMode(self.ControllerManager, mode)
 	self.MovementModeProperty:Set(mode)
+end
+
+--[=[
+	Sends an "action failed" notification to the owning player. The message
+	describes why an attempted action couldn't proceed (e.g. failed requirements
+	check). Future client UI subscribes to the `ActionFailed` Comm signal to
+	render a transient toast.
+	@within Outworlder
+	@server
+	@param message string
+]=]
+function Outworlder:NotifyActionFailed(message: string)
+	self.ActionFailedSignal:Fire(self.Player, message)
 end
 
 --[=[

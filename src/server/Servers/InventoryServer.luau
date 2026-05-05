@@ -3,15 +3,14 @@
 --[=[
 	@class InventoryServer
 	Manages player inventories: adding, removing, moving, and querying items.
-	Interfaces with DataServer for persistence.
+	Reads and mutates `DataServer` synchronously; replicates the result via the
+	`Inventory` Comm property after each commit.
 ]=]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 local Comm = require(ReplicatedStorage.Packages.Comm)
-local Observers = require(ReplicatedStorage.Packages.Observers)
-local Promise = require(ReplicatedStorage.Packages.Promise)
 local Sift = require(ReplicatedStorage.Packages.Sift)
 local t = require(ReplicatedStorage.Packages.t)
 
@@ -88,26 +87,31 @@ local function stackableCapacity(
 	return capacity
 end
 
--- Commits a new inventory to DataServer, replicates it to the client, and resolves true.
+-- Commits a new inventory to DataServer and replicates it to the client.
+-- Callers MUST have verified the player's data is loaded — `commit` asserts on
+-- `UpdateData` returning nil so a missing pre-check fails loudly.
 local function commit(player: Player, newInventory: Inventory)
-	return DataServer.UpdateData(player, function(data)
+	local committed = DataServer.UpdateData(player, function(data)
 		return Sift.Dictionary.merge(data, { Inventory = newInventory })
-	end):andThen(function()
-		inventoryProperty:SetFor(player, newInventory)
-		return true
 	end)
+	assert(committed ~= nil, "InventoryServer.commit: caller must verify DataServer.IsLoaded(player) first")
+	inventoryProperty:SetFor(player, newInventory)
 end
 
 --[=[
-	Returns a shallow copy of the player's current inventory.
+	Returns a shallow copy of the player's current inventory. If the player's
+	data isn't loaded, returns a copy of the default (empty) inventory — callers
+	never receive nil and never crash.
 	@within InventoryServer
 	@param player Player
-	@return Promise<Inventory>
+	@return Inventory
 ]=]
-function InventoryServer.GetInventory(player: Player): any
-	return DataServer.GetData(player):andThen(function(data)
-		return Sift.Dictionary.copy(asInventory(data))
-	end)
+function InventoryServer.GetInventory(player: Player): Inventory
+	local data = DataServer.GetData(player)
+	if data == nil then
+		return Sift.Dictionary.copy(InventoryTypes.DefaultInventory)
+	end
+	return Sift.Dictionary.copy(asInventory(data))
 end
 
 --[=[
@@ -122,79 +126,78 @@ end
 	@param kind string -- The item kind to add.
 	@param count number? -- Number of items to add. Defaults to 1.
 	@param meta {[string]: any}? -- Optional metadata. Stackable stacks only merge if Meta is identical.
-	@return Promise<boolean> -- Resolves `false` when the inventory cannot hold all items.
+	@return boolean -- `false` when the inventory cannot hold all items.
 ]=]
-function InventoryServer.AddItem(player: Player, kind: string, count: number?, meta: { [string]: any }?): any
+function InventoryServer.AddItem(player: Player, kind: string, count: number?, meta: { [string]: any }?): boolean
 	local def = ItemDefs[kind]
-	if def == nil then
-		return Promise.reject("Unknown item kind: " .. kind)
-	end
+	assert(def ~= nil, `InventoryServer.AddItem: unknown item kind {kind}`)
 
 	local amount = count or 1
-	if amount < 1 then
-		return Promise.reject("Count must be >= 1")
+	assert(amount >= 1, "InventoryServer.AddItem: count must be >= 1")
+
+	local data = DataServer.GetData(player)
+	if data == nil then
+		return false
 	end
+	local inventory: Inventory = Sift.Dictionary.copy(asInventory(data))
 
-	return DataServer.GetData(player):andThen(function(data)
-		local inventory: Inventory = Sift.Dictionary.copy(asInventory(data))
+	if def.MaxStackSize ~= nil then
+		local maxStackSize = def.MaxStackSize
 
-		if def.MaxStackSize ~= nil then
-			local maxStackSize = def.MaxStackSize
+		if stackableCapacity(inventory, kind, maxStackSize, meta) < amount then
+			return false
+		end
 
-			if stackableCapacity(inventory, kind, maxStackSize, meta) < amount then
-				return false
+		-- Fill existing partial stacks with matching Meta first.
+		local remaining = amount
+		for i = 1, InventoryTypes.Size do
+			if remaining <= 0 then
+				break
 			end
-
-			-- Fill existing partial stacks with matching Meta first.
-			local remaining = amount
-			for i = 1, InventoryTypes.Size do
-				if remaining <= 0 then
-					break
-				end
-				local key = tostring(i)
-				local item = inventory[key]
-				if item ~= nil and item.Kind == kind and metaEqual(item.Meta, meta) then
-					local room = maxStackSize - (item.Count or 0)
-					if room > 0 then
-						local toAdd = math.min(room, remaining)
-						inventory[key] = { Kind = kind, Count = (item.Count or 0) + toAdd, Meta = item.Meta }
-						remaining -= toAdd
-					end
-				end
-			end
-
-			-- Claim empty slots for any remainder.
-			for i = 1, InventoryTypes.Size do
-				if remaining <= 0 then
-					break
-				end
-				local key = tostring(i)
-				if inventory[key] == nil then
-					local toAdd = math.min(maxStackSize, remaining)
-					inventory[key] = { Kind = kind, Count = toAdd, Meta = meta }
+			local key = tostring(i)
+			local item = inventory[key]
+			if item ~= nil and item.Kind == kind and metaEqual(item.Meta, meta) then
+				local room = maxStackSize - (item.Count or 0)
+				if room > 0 then
+					local toAdd = math.min(room, remaining)
+					inventory[key] = { Kind = kind, Count = (item.Count or 0) + toAdd, Meta = item.Meta }
 					remaining -= toAdd
-				end
-			end
-		else
-			if countFreeSlots(inventory) < amount then
-				return false
-			end
-
-			local placed = 0
-			for i = 1, InventoryTypes.Size do
-				if placed >= amount then
-					break
-				end
-				local key = tostring(i)
-				if inventory[key] == nil then
-					inventory[key] = { Kind = kind, Meta = meta }
-					placed += 1
 				end
 			end
 		end
 
-		return commit(player, inventory)
-	end)
+		-- Claim empty slots for any remainder.
+		for i = 1, InventoryTypes.Size do
+			if remaining <= 0 then
+				break
+			end
+			local key = tostring(i)
+			if inventory[key] == nil then
+				local toAdd = math.min(maxStackSize, remaining)
+				inventory[key] = { Kind = kind, Count = toAdd, Meta = meta }
+				remaining -= toAdd
+			end
+		end
+	else
+		if countFreeSlots(inventory) < amount then
+			return false
+		end
+
+		local placed = 0
+		for i = 1, InventoryTypes.Size do
+			if placed >= amount then
+				break
+			end
+			local key = tostring(i)
+			if inventory[key] == nil then
+				inventory[key] = { Kind = kind, Meta = meta }
+				placed += 1
+			end
+		end
+	end
+
+	commit(player, inventory)
+	return true
 end
 
 --[=[
@@ -206,44 +209,45 @@ end
 	@param player Player
 	@param slot string -- The slot key to remove from.
 	@param count number? -- Number of items to remove. Defaults to the full stack.
-	@return Promise<boolean> -- Resolves `false` when the slot is empty or count exceeds available.
+	@return boolean -- `false` when the slot is empty or count exceeds available.
 ]=]
-function InventoryServer.RemoveItem(player: Player, slot: string, count: number?): any
-	return DataServer.GetData(player):andThen(function(data)
-		local inventory: Inventory = asInventory(data)
-		local item = inventory[slot]
+function InventoryServer.RemoveItem(player: Player, slot: string, count: number?): boolean
+	local data = DataServer.GetData(player)
+	if data == nil then
+		return false
+	end
+	local inventory: Inventory = asInventory(data)
+	local item = inventory[slot]
 
-		if item == nil then
+	if item == nil then
+		return false
+	end
+
+	local def = ItemDefs[item.Kind]
+	assert(def ~= nil, `InventoryServer.RemoveItem: unknown item kind {item.Kind}`)
+
+	local newInventory: Inventory = Sift.Dictionary.copy(inventory)
+
+	if def.MaxStackSize ~= nil then
+		local currentCount = item.Count or 0
+		local toRemove = count or currentCount
+
+		if toRemove > currentCount then
 			return false
 		end
 
-		local def = ItemDefs[item.Kind]
-		if def == nil then
-			return Promise.reject("Unknown item kind: " .. item.Kind)
-		end
-
-		local newInventory: Inventory = Sift.Dictionary.copy(inventory)
-
-		if def.MaxStackSize ~= nil then
-			local currentCount = item.Count or 0
-			local toRemove = count or currentCount
-
-			if toRemove > currentCount then
-				return false
-			end
-
-			local remaining = currentCount - toRemove
-			if remaining <= 0 then
-				newInventory[slot] = nil
-			else
-				newInventory[slot] = { Kind = item.Kind, Count = remaining, Meta = item.Meta }
-			end
-		else
+		local remaining = currentCount - toRemove
+		if remaining <= 0 then
 			newInventory[slot] = nil
+		else
+			newInventory[slot] = { Kind = item.Kind, Count = remaining, Meta = item.Meta }
 		end
+	else
+		newInventory[slot] = nil
+	end
 
-		return commit(player, newInventory)
-	end)
+	commit(player, newInventory)
+	return true
 end
 
 --[=[
@@ -257,60 +261,61 @@ end
 	@param player Player
 	@param fromSlot string -- The slot to move from.
 	@param toSlot string -- The slot to move to.
-	@return Promise<boolean> -- Resolves `false` when `fromSlot` is empty.
+	@return boolean -- `false` when `fromSlot` is empty.
 ]=]
-function InventoryServer.MoveItem(player: Player, fromSlot: string, toSlot: string): any
+function InventoryServer.MoveItem(player: Player, fromSlot: string, toSlot: string): boolean
 	if fromSlot == toSlot then
-		return Promise.resolve(true)
+		return true
 	end
 
-	return DataServer.GetData(player):andThen(function(data)
-		local inventory: Inventory = asInventory(data)
-		local fromItem = inventory[fromSlot]
+	local data = DataServer.GetData(player)
+	if data == nil then
+		return false
+	end
+	local inventory: Inventory = asInventory(data)
+	local fromItem = inventory[fromSlot]
 
-		if fromItem == nil then
-			return false
-		end
+	if fromItem == nil then
+		return false
+	end
 
-		local def = ItemDefs[fromItem.Kind]
-		if def == nil then
-			return Promise.reject("Unknown item kind: " .. fromItem.Kind)
-		end
+	local def = ItemDefs[fromItem.Kind]
+	assert(def ~= nil, `InventoryServer.MoveItem: unknown item kind {fromItem.Kind}`)
 
-		local newInventory: Inventory = Sift.Dictionary.copy(inventory)
-		local toItem = inventory[toSlot]
+	local newInventory: Inventory = Sift.Dictionary.copy(inventory)
+	local toItem = inventory[toSlot]
 
-		if toItem == nil then
-			newInventory[toSlot] = fromItem
-			newInventory[fromSlot] = nil
-		elseif def.MaxStackSize ~= nil and toItem.Kind == fromItem.Kind and metaEqual(toItem.Meta, fromItem.Meta) then
-			-- Merge stacks; swap if destination is already full.
-			local maxStackSize = def.MaxStackSize
-			local fromCount = fromItem.Count or 0
-			local toCount = toItem.Count or 0
-			local room = maxStackSize - toCount
+	if toItem == nil then
+		newInventory[toSlot] = fromItem
+		newInventory[fromSlot] = nil
+	elseif def.MaxStackSize ~= nil and toItem.Kind == fromItem.Kind and metaEqual(toItem.Meta, fromItem.Meta) then
+		-- Merge stacks; swap if destination is already full.
+		local maxStackSize = def.MaxStackSize
+		local fromCount = fromItem.Count or 0
+		local toCount = toItem.Count or 0
+		local room = maxStackSize - toCount
 
-			if room <= 0 then
-				newInventory[toSlot] = fromItem
-				newInventory[fromSlot] = toItem
-			else
-				local transferred = math.min(room, fromCount)
-				newInventory[toSlot] = { Kind = toItem.Kind, Count = toCount + transferred, Meta = toItem.Meta }
-				local leftover = fromCount - transferred
-				if leftover <= 0 then
-					newInventory[fromSlot] = nil
-				else
-					newInventory[fromSlot] = { Kind = fromItem.Kind, Count = leftover, Meta = fromItem.Meta }
-				end
-			end
-		else
-			-- Swap (different items, non-stackable, or mismatched Meta).
+		if room <= 0 then
 			newInventory[toSlot] = fromItem
 			newInventory[fromSlot] = toItem
+		else
+			local transferred = math.min(room, fromCount)
+			newInventory[toSlot] = { Kind = toItem.Kind, Count = toCount + transferred, Meta = toItem.Meta }
+			local leftover = fromCount - transferred
+			if leftover <= 0 then
+				newInventory[fromSlot] = nil
+			else
+				newInventory[fromSlot] = { Kind = fromItem.Kind, Count = leftover, Meta = fromItem.Meta }
+			end
 		end
+	else
+		-- Swap (different items, non-stackable, or mismatched Meta).
+		newInventory[toSlot] = fromItem
+		newInventory[fromSlot] = toItem
+	end
 
-		return commit(player, newInventory)
-	end)
+	commit(player, newInventory)
+	return true
 end
 
 --[=[
@@ -323,56 +328,57 @@ end
 	@param fromSlot string -- The slot to split from.
 	@param toSlot string -- The destination slot. Must be empty or hold the same item with room.
 	@param count number -- Number of items to split off.
-	@return Promise<boolean> -- Resolves `false` when the split is not possible.
+	@return boolean -- `false` when the split is not possible.
 ]=]
-function InventoryServer.SplitStack(player: Player, fromSlot: string, toSlot: string, count: number): any
+function InventoryServer.SplitStack(player: Player, fromSlot: string, toSlot: string, count: number): boolean
 	if fromSlot == toSlot then
-		return Promise.resolve(false)
+		return false
 	end
 
-	return DataServer.GetData(player):andThen(function(data)
-		local inventory: Inventory = asInventory(data)
-		local fromItem = inventory[fromSlot]
+	local data = DataServer.GetData(player)
+	if data == nil then
+		return false
+	end
+	local inventory: Inventory = asInventory(data)
+	local fromItem = inventory[fromSlot]
 
-		if fromItem == nil then
+	if fromItem == nil then
+		return false
+	end
+
+	local def = ItemDefs[fromItem.Kind]
+	assert(def ~= nil, `InventoryServer.SplitStack: unknown item kind {fromItem.Kind}`)
+
+	if def.MaxStackSize == nil then
+		return false
+	end
+
+	local fromCount = fromItem.Count or 0
+	if count < 1 or count >= fromCount then
+		return false
+	end
+
+	local toItem = inventory[toSlot]
+	if toItem ~= nil then
+		if toItem.Kind ~= fromItem.Kind or not metaEqual(toItem.Meta, fromItem.Meta) then
 			return false
 		end
-
-		local def = ItemDefs[fromItem.Kind]
-		if def == nil then
-			return Promise.reject("Unknown item kind: " .. fromItem.Kind)
-		end
-
-		if def.MaxStackSize == nil then
+		if (toItem.Count or 0) + count > def.MaxStackSize then
 			return false
 		end
+	end
 
-		local fromCount = fromItem.Count or 0
-		if count < 1 or count >= fromCount then
-			return false
-		end
+	local newInventory: Inventory = Sift.Dictionary.copy(inventory)
+	newInventory[fromSlot] = { Kind = fromItem.Kind, Count = fromCount - count, Meta = fromItem.Meta }
 
-		local toItem = inventory[toSlot]
-		if toItem ~= nil then
-			if toItem.Kind ~= fromItem.Kind or not metaEqual(toItem.Meta, fromItem.Meta) then
-				return false
-			end
-			if (toItem.Count or 0) + count > def.MaxStackSize then
-				return false
-			end
-		end
+	if toItem ~= nil then
+		newInventory[toSlot] = { Kind = toItem.Kind, Count = (toItem.Count or 0) + count, Meta = toItem.Meta }
+	else
+		newInventory[toSlot] = { Kind = fromItem.Kind, Count = count, Meta = fromItem.Meta }
+	end
 
-		local newInventory: Inventory = Sift.Dictionary.copy(inventory)
-		newInventory[fromSlot] = { Kind = fromItem.Kind, Count = fromCount - count, Meta = fromItem.Meta }
-
-		if toItem ~= nil then
-			newInventory[toSlot] = { Kind = toItem.Kind, Count = (toItem.Count or 0) + count, Meta = toItem.Meta }
-		else
-			newInventory[toSlot] = { Kind = fromItem.Kind, Count = count, Meta = fromItem.Meta }
-		end
-
-		return commit(player, newInventory)
-	end)
+	commit(player, newInventory)
+	return true
 end
 
 --[=[
@@ -381,24 +387,24 @@ end
 	@within InventoryServer
 	@param player Player
 	@param kind string -- The item kind to count.
-	@return Promise<number>
+	@return number
 ]=]
-function InventoryServer.GetItemCount(player: Player, kind: string): any
-	if ItemDefs[kind] == nil then
-		return Promise.reject("Unknown item kind: " .. kind)
-	end
+function InventoryServer.GetItemCount(player: Player, kind: string): number
+	assert(ItemDefs[kind] ~= nil, `InventoryServer.GetItemCount: unknown item kind {kind}`)
 
-	return DataServer.GetData(player):andThen(function(data)
-		local inventory: Inventory = asInventory(data)
-		local total = 0
-		for i = 1, InventoryTypes.Size do
-			local item = inventory[tostring(i)]
-			if item ~= nil and item.Kind == kind then
-				total += item.Count or 1
-			end
+	local data = DataServer.GetData(player)
+	if data == nil then
+		return 0
+	end
+	local inventory: Inventory = asInventory(data)
+	local total = 0
+	for i = 1, InventoryTypes.Size do
+		local item = inventory[tostring(i)]
+		if item ~= nil and item.Kind == kind then
+			total += item.Count or 1
 		end
-		return total
-	end)
+	end
+	return total
 end
 
 --[=[
@@ -407,12 +413,10 @@ end
 	@param player Player
 	@param kind string -- The item kind to check.
 	@param count number? -- Minimum required quantity. Defaults to 1.
-	@return Promise<boolean>
+	@return boolean
 ]=]
-function InventoryServer.HasItem(player: Player, kind: string, count: number?): any
-	return InventoryServer.GetItemCount(player, kind):andThen(function(total)
-		return total >= (count or 1)
-	end)
+function InventoryServer.HasItem(player: Player, kind: string, count: number?): boolean
+	return InventoryServer.GetItemCount(player, kind) >= (count or 1)
 end
 
 --[=[
@@ -423,63 +427,62 @@ end
 	@param player Player
 	@param kind string -- The item kind to remove.
 	@param count number? -- Number of items to remove. Defaults to 1.
-	@return Promise<boolean> -- Resolves `false` when the player does not have enough items.
+	@return boolean -- `false` when the player does not have enough items.
 ]=]
-function InventoryServer.RemoveItemByKind(player: Player, kind: string, count: number?): any
-	if ItemDefs[kind] == nil then
-		return Promise.reject("Unknown item kind: " .. kind)
-	end
+function InventoryServer.RemoveItemByKind(player: Player, kind: string, count: number?): boolean
+	assert(ItemDefs[kind] ~= nil, `InventoryServer.RemoveItemByKind: unknown item kind {kind}`)
 
 	local amount = count or 1
-	if amount < 1 then
-		return Promise.reject("Count must be >= 1")
+	assert(amount >= 1, "InventoryServer.RemoveItemByKind: count must be >= 1")
+
+	local data = DataServer.GetData(player)
+	if data == nil then
+		return false
+	end
+	local inventory: Inventory = asInventory(data)
+
+	local total = 0
+	for i = 1, InventoryTypes.Size do
+		local item = inventory[tostring(i)]
+		if item ~= nil and item.Kind == kind then
+			total += item.Count or 1
+		end
 	end
 
-	return DataServer.GetData(player):andThen(function(data)
-		local inventory: Inventory = asInventory(data)
+	if total < amount then
+		return false
+	end
 
-		local total = 0
-		for i = 1, InventoryTypes.Size do
-			local item = inventory[tostring(i)]
-			if item ~= nil and item.Kind == kind then
-				total += item.Count or 1
+	local newInventory: Inventory = Sift.Dictionary.copy(inventory)
+	local remaining = amount
+
+	for i = 1, InventoryTypes.Size do
+		if remaining <= 0 then
+			break
+		end
+		local key = tostring(i)
+		local item = newInventory[key]
+		if item ~= nil and item.Kind == kind then
+			local slotCount = item.Count or 1
+			if slotCount <= remaining then
+				newInventory[key] = nil
+				remaining -= slotCount
+			else
+				newInventory[key] = { Kind = item.Kind, Count = slotCount - remaining, Meta = item.Meta }
+				remaining = 0
 			end
 		end
+	end
 
-		if total < amount then
-			return false
-		end
-
-		local newInventory: Inventory = Sift.Dictionary.copy(inventory)
-		local remaining = amount
-
-		for i = 1, InventoryTypes.Size do
-			if remaining <= 0 then
-				break
-			end
-			local key = tostring(i)
-			local item = newInventory[key]
-			if item ~= nil and item.Kind == kind then
-				local slotCount = item.Count or 1
-				if slotCount <= remaining then
-					newInventory[key] = nil
-					remaining -= slotCount
-				else
-					newInventory[key] = { Kind = item.Kind, Count = slotCount - remaining, Meta = item.Meta }
-					remaining = 0
-				end
-			end
-		end
-
-		return commit(player, newInventory)
-	end)
+	commit(player, newInventory)
+	return true
 end
 
 --[=[
-	Replicates `inventory` to the player's `Inventory` Comm property without writing to DataServer.
-	Use this from sibling servers (e.g. `EquipmentServer`) that perform their own atomic
-	cross-table commit through `DataServer.UpdateData` and only need to push the resulting
-	inventory state to the client.
+	Replicates `inventory` to the player's `Inventory` Comm property without
+	writing to DataServer. Use this from sibling servers (e.g. `EquipmentServer`)
+	that perform their own atomic cross-table commit through `DataServer.UpdateData`
+	and only need to push the resulting inventory state to the client.
 	@within InventoryServer
 	@param player Player
 	@param inventory Inventory
@@ -511,10 +514,8 @@ function InventoryServer.Init()
 		return InventoryServer.RemoveItem(player, slot)
 	end)
 
-	Observers.observePlayer(function(player)
-		InventoryServer.GetInventory(player):andThen(function(inventory)
-			inventoryProperty:SetFor(player, inventory)
-		end)
+	DataServer.ObservePlayer(function(player, data)
+		inventoryProperty:SetFor(player, asInventory(data))
 
 		local kinds = Sift.Dictionary.keys(ItemDefs)
 		for _ = 1, 20 do

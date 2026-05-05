@@ -97,6 +97,7 @@ function OutworlderClient:Construct()
 	self.MovementModeProperty = self.Comm:GetProperty("MovementMode")
 	self.StaminaProperty = self.Comm:GetProperty("Stamina")
 	self.ActionProgressProperty = self.Comm:GetProperty("ActionProgress")
+	self.ActionFailedSignal = self.Comm:GetSignal("ActionFailed")
 	self.RequestSetMovementModeFunction = self.Comm:GetFunction("RequestSetMovementMode")
 end
 

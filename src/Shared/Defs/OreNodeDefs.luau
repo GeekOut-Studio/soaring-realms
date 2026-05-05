@@ -11,6 +11,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Sift = require(ReplicatedStorage.Packages.Sift)
 
+local Requirements = require(ReplicatedStorage.Shared.Requirements.Requirements)
+
 --[=[
 	@type OreNodeKind "Stone" | "Copper"
 	@within OreNodeDefs
@@ -41,7 +43,7 @@ export type Drops = string | { DropEntry }
 	@within OreNodeDefs
 	@field Kind OreNodeKind
 	@field Name string -- Human-readable name shown on the proximity prompt.
-	@field RequiredMiningLevel number -- Minimum Mining skill level to mine this node.
+	@field Requirements {Requirement} -- Mining-attempt gates (skill levels, equipment, inventory space, …).
 	@field ProgressDifficulty number -- Average seconds for a solo player to fill the per-player progress meter.
 	@field BreakDifficulty number -- Average seconds for a solo player to fill the shared break meter (significantly larger than `ProgressDifficulty`).
 	@field ExperiencePerProgress number -- Mining experience awarded each time the per-player progress meter fills.
@@ -50,7 +52,7 @@ export type Drops = string | { DropEntry }
 export type OreNodeDef = {
 	Kind: OreNodeKind,
 	Name: string,
-	RequiredMiningLevel: number,
+	Requirements: { Requirements.Requirement },
 	ProgressDifficulty: number,
 	BreakDifficulty: number,
 	ExperiencePerProgress: number,
@@ -62,7 +64,10 @@ export type OreNodeDefs = { [string]: OreNodeDef }
 local Defs = {
 	Stone = {
 		Name = "Stone",
-		RequiredMiningLevel = 1,
+		Requirements = {
+			Requirements.SkillLevel("Mining", 1),
+			Requirements.InventoryHasRoomFor({ "Stone" }),
+		},
 		ProgressDifficulty = 5,
 		BreakDifficulty = 25,
 		ExperiencePerProgress = 10,
@@ -70,7 +75,10 @@ local Defs = {
 	},
 	Copper = {
 		Name = "Copper",
-		RequiredMiningLevel = 1,
+		Requirements = {
+			Requirements.SkillLevel("Mining", 1),
+			Requirements.InventoryHasRoomFor({ "OreCopper", "Stone" }),
+		},
 		ProgressDifficulty = 5,
 		BreakDifficulty = 25,
 		ExperiencePerProgress = 10,

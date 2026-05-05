@@ -2,17 +2,16 @@
 
 --[=[
 	@class EquipmentServer
-	Manages player equipment: equipping items from the inventory and unequipping them back into it.
-	Equip and unequip operations atomically update both the `Inventory` and `Equipment` tables
-	through a single `DataServer.UpdateData` call.
+	Manages player equipment: equipping items from the inventory and unequipping
+	them back into it. Equip/unequip operations atomically update both the
+	`Inventory` and `Equipment` tables through a single `DataServer.UpdateData`
+	call.
 ]=]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 local Comm = require(ReplicatedStorage.Packages.Comm)
-local Observers = require(ReplicatedStorage.Packages.Observers)
-local Promise = require(ReplicatedStorage.Packages.Promise)
 local Sift = require(ReplicatedStorage.Packages.Sift)
 local Signal = require(ReplicatedStorage.Packages.Signal)
 local t = require(ReplicatedStorage.Packages.t)
@@ -65,38 +64,45 @@ local function canEquipTo(item: Item, equipmentSlot: string): boolean
 	return false
 end
 
--- Commits an atomic update to both Inventory and Equipment, then replicates each via Comm.
+-- Commits an atomic update to both Inventory and Equipment, then replicates
+-- each via Comm. Callers MUST have verified the player's data is loaded.
 local function commit(player: Player, newInventory: Inventory, newEquipment: Equipment)
-	return DataServer.UpdateData(player, function(data)
+	local committed = DataServer.UpdateData(player, function(data)
 		return Sift.Dictionary.merge(data, {
 			Inventory = newInventory,
 			Equipment = newEquipment,
 		})
-	end):andThen(function()
-		InventoryServer.ReplicateInventory(player, newInventory)
-		equipmentProperty:SetFor(player, newEquipment)
-		equipmentChanged:Fire(player, newEquipment)
-		return true
 	end)
+	assert(committed ~= nil, "EquipmentServer.commit: caller must verify DataServer.IsLoaded(player) first")
+	InventoryServer.ReplicateInventory(player, newInventory)
+	equipmentProperty:SetFor(player, newEquipment)
+	equipmentChanged:Fire(player, newEquipment)
 end
 
 --[=[
-	Returns a shallow copy of the player's current equipment.
+	Returns a shallow copy of the player's current equipment. If the player's
+	data isn't loaded, returns a copy of the default (empty) equipment — callers
+	never receive nil and never crash.
 	@within EquipmentServer
 	@param player Player
-	@return Promise<Equipment>
+	@return Equipment
 ]=]
-function EquipmentServer.GetEquipment(player: Player): any
-	return DataServer.GetData(player):andThen(function(data)
-		return Sift.Dictionary.copy(asEquipment(data))
-	end)
+function EquipmentServer.GetEquipment(player: Player): Equipment
+	local data = DataServer.GetData(player)
+	if data == nil then
+		return Sift.Dictionary.copy(EquipmentTypes.DefaultEquipment)
+	end
+	return Sift.Dictionary.copy(asEquipment(data))
 end
 
 --[=[
 	Observes changes to `player`'s equipment.
 
-	`callback` is invoked once with the current value as soon as the player's data is loaded
-	and again on every subsequent equip/unequip commit.
+	`callback` is invoked once with the current value immediately (the default
+	empty equipment if the player's data isn't loaded yet) and again on every
+	subsequent equip/unequip commit. The data-loaded path also fires
+	`equipmentChanged`, so observers that subscribed before the player's data
+	was loaded receive the loaded value at that time.
 	@within EquipmentServer
 	@param player Player
 	@param callback (equipment: Equipment) -> () -- Handler called on each value change.
@@ -109,9 +115,7 @@ function EquipmentServer.ObserveEquipment(player: Player, callback: (equipment: 
 		end
 	end)
 
-	DataServer.GetData(player):andThen(function(data)
-		callback(asEquipment(data))
-	end)
+	callback(EquipmentServer.GetEquipment(player))
 
 	return function()
 		connection:Disconnect()
@@ -121,42 +125,44 @@ end
 --[=[
 	Equips the item in `inventorySlot` to `equipmentSlot`.
 
-	The item's def must list `equipmentSlot` in its `EquipSlots`. If `equipmentSlot` is already
-	occupied, the previously equipped item is swapped back into `inventorySlot`.
+	The item's def must list `equipmentSlot` in its `EquipSlots`. If `equipmentSlot`
+	is already occupied, the previously equipped item is swapped back into
+	`inventorySlot`.
 	@within EquipmentServer
 	@param player Player
 	@param inventorySlot string -- The inventory slot holding the item to equip.
 	@param equipmentSlot EquipmentSlot -- The equipment slot to place the item into.
-	@return Promise<boolean> -- Resolves `false` when the inventory slot is empty or the item
-		is not equippable into `equipmentSlot`.
+	@return boolean -- `false` when the inventory slot is empty or the item is not
+		equippable into `equipmentSlot`.
 ]=]
-function EquipmentServer.Equip(player: Player, inventorySlot: string, equipmentSlot: string): any
-	if not EquipmentTypes.SlotSet[equipmentSlot] then
-		return Promise.reject("Unknown equipment slot: " .. equipmentSlot)
+function EquipmentServer.Equip(player: Player, inventorySlot: string, equipmentSlot: string): boolean
+	assert(EquipmentTypes.SlotSet[equipmentSlot], `EquipmentServer.Equip: unknown equipment slot {equipmentSlot}`)
+
+	local data = DataServer.GetData(player)
+	if data == nil then
+		return false
+	end
+	local inventory: Inventory = asInventory(data)
+	local equipment: Equipment = asEquipment(data)
+
+	local item = inventory[inventorySlot]
+	if item == nil then
+		return false
 	end
 
-	return DataServer.GetData(player):andThen(function(data)
-		local inventory: Inventory = asInventory(data)
-		local equipment: Equipment = asEquipment(data)
+	if not canEquipTo(item, equipmentSlot) then
+		return false
+	end
 
-		local item = inventory[inventorySlot]
-		if item == nil then
-			return false
-		end
+	local newInventory: Inventory = Sift.Dictionary.copy(inventory)
+	local newEquipment: Equipment = Sift.Dictionary.copy(equipment)
 
-		if not canEquipTo(item, equipmentSlot) then
-			return false
-		end
+	local existing = equipment[equipmentSlot]
+	newEquipment[equipmentSlot] = item
+	newInventory[inventorySlot] = existing
 
-		local newInventory: Inventory = Sift.Dictionary.copy(inventory)
-		local newEquipment: Equipment = Sift.Dictionary.copy(equipment)
-
-		local existing = equipment[equipmentSlot]
-		newEquipment[equipmentSlot] = item
-		newInventory[inventorySlot] = existing
-
-		return commit(player, newInventory, newEquipment)
-	end)
+	commit(player, newInventory, newEquipment)
+	return true
 end
 
 --[=[
@@ -166,35 +172,36 @@ end
 	@within EquipmentServer
 	@param player Player
 	@param equipmentSlot EquipmentSlot -- The equipment slot to unequip from.
-	@return Promise<boolean> -- Resolves `false` when the slot is empty or the inventory is full.
+	@return boolean -- `false` when the slot is empty or the inventory is full.
 ]=]
-function EquipmentServer.Unequip(player: Player, equipmentSlot: string): any
-	if not EquipmentTypes.SlotSet[equipmentSlot] then
-		return Promise.reject("Unknown equipment slot: " .. equipmentSlot)
+function EquipmentServer.Unequip(player: Player, equipmentSlot: string): boolean
+	assert(EquipmentTypes.SlotSet[equipmentSlot], `EquipmentServer.Unequip: unknown equipment slot {equipmentSlot}`)
+
+	local data = DataServer.GetData(player)
+	if data == nil then
+		return false
+	end
+	local inventory: Inventory = asInventory(data)
+	local equipment: Equipment = asEquipment(data)
+
+	local item = equipment[equipmentSlot]
+	if item == nil then
+		return false
 	end
 
-	return DataServer.GetData(player):andThen(function(data)
-		local inventory: Inventory = asInventory(data)
-		local equipment: Equipment = asEquipment(data)
+	local freeSlot = findFreeInventorySlot(inventory)
+	if freeSlot == nil then
+		return false
+	end
 
-		local item = equipment[equipmentSlot]
-		if item == nil then
-			return false
-		end
+	local newInventory: Inventory = Sift.Dictionary.copy(inventory)
+	local newEquipment: Equipment = Sift.Dictionary.copy(equipment)
 
-		local freeSlot = findFreeInventorySlot(inventory)
-		if freeSlot == nil then
-			return false
-		end
+	newInventory[freeSlot] = item
+	newEquipment[equipmentSlot] = nil
 
-		local newInventory: Inventory = Sift.Dictionary.copy(inventory)
-		local newEquipment: Equipment = Sift.Dictionary.copy(equipment)
-
-		newInventory[freeSlot] = item
-		newEquipment[equipmentSlot] = nil
-
-		return commit(player, newInventory, newEquipment)
-	end)
+	commit(player, newInventory, newEquipment)
+	return true
 end
 
 function EquipmentServer.Init()
@@ -220,11 +227,10 @@ function EquipmentServer.Init()
 		return EquipmentServer.Unequip(player, equipmentSlot)
 	end)
 
-	Observers.observePlayer(function(player)
-		EquipmentServer.GetEquipment(player):andThen(function(equipment)
-			equipmentProperty:SetFor(player, equipment)
-		end)
-
+	DataServer.ObservePlayer(function(player, data)
+		local equipment = asEquipment(data)
+		equipmentProperty:SetFor(player, equipment)
+		equipmentChanged:Fire(player, equipment)
 		return nil
 	end)
 end

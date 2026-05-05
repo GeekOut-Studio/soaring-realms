@@ -38,6 +38,7 @@ local Trove = require(ReplicatedStorage.Packages.Trove)
 local t = require(ReplicatedStorage.Packages.t)
 
 local InventoryServer = require(ServerScriptService.Server.Servers.InventoryServer)
+local RequirementsServer = require(ServerScriptService.Server.Servers.RequirementsServer)
 local SkillServer = require(ServerScriptService.Server.Servers.SkillServer)
 local Outworlder = require(ServerScriptService.Server.Components.Outworlder)
 local ActionTypes = require(ReplicatedStorage.Shared.Types.ActionTypes)
@@ -274,6 +275,12 @@ function OreNode:HandlePromptTriggered(player: Player, entry: NodeEntry)
 	if outworlder == nil then
 		return
 	end
+
+	local ok, message = RequirementsServer.CheckForPlayer(player, self.Def.Requirements)
+	if not ok then
+		outworlder:NotifyActionFailed(message or "You can't do that right now.")
+		return
+	end
 	self:BeginMining(player, outworlder, entry)
 end
 
@@ -355,12 +362,8 @@ end
 ]=]
 function OreNode:GrantProgressFill(player: Player)
 	local kind = pickDrop(self.Def.Drops)
-	InventoryServer.AddItem(player, kind, 1):catch(function(err)
-		warn(`OreNode drop AddItem failed: {err}`)
-	end)
-	SkillServer.AddExperience(player, "Mining", self.Def.ExperiencePerProgress):catch(function(err)
-		warn(`OreNode XP AddExperience failed: {err}`)
-	end)
+	InventoryServer.AddItem(player, kind, 1)
+	SkillServer.AddExperience(player, "Mining", self.Def.ExperiencePerProgress)
 end
 
 --[=[

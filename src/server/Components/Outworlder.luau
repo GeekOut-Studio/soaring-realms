@@ -80,7 +80,7 @@ function Outworlder:Construct()
 
 	self.MovementMode = MovementTypes.DefaultMode :: MovementMode
 	self.Stamina = MovementTypes.MaxStamina
-	self.StaminaRegenDelay = 0
+	self.StaminaRegenTimer = 0
 	self.StaminaSendAccumulator = 0
 	self.AirborneAccumulator = 0
 
@@ -336,11 +336,10 @@ function Outworlder:HeartbeatUpdate(dt: number)
 	local drained = OutworlderShared.StepStaminaDrain(self.Stamina, self.MovementMode, isMoving, dt)
 	if drained < self.Stamina then
 		self.Stamina = drained
-		self.StaminaRegenDelay = 0
+		self.StaminaRegenTimer = MovementTypes.StaminaRegenDelaySeconds
 	else
-		-- TODO: INVERT THIS LOGIC TO StaminaRegenTimer and COUNT DOWN
-		self.StaminaRegenDelay += dt
-		if self.StaminaRegenDelay >= MovementTypes.StaminaRegenDelaySeconds then
+		self.StaminaRegenTimer = math.max(0, self.StaminaRegenTimer - dt)
+		if self.StaminaRegenTimer <= 0 then
 			self.Stamina = math.min(MovementTypes.MaxStamina, self.Stamina + MovementTypes.StaminaRegenPerSecond * dt)
 		end
 	end

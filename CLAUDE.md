@@ -1,7 +1,6 @@
 # Rules
 
-- Run `stylua <file>` on every modified Lua or Luau file.
-- Type-check with `luau-lsp analyze` (the batch CLI, not the long-running `lsp` server). Always pass `--sourcemap=sourcemap.json --defs=<roblox global types> --platform=roblox --no-strict-dm-types --ignore="Packages/**" --ignore="**/_Index/**"` — without sourcemap + defs the run reports false positives like `Unknown global 'game'` that drown out real diagnostics.
+- Run `./scripts/check.sh <file>...` on every modified Lua or Luau file. The script regenerates the sourcemap, runs stylua, then runs `luau-lsp analyze` with the right flags. Don't invoke stylua or luau-lsp directly — go through the script so the toolchain stays in one place.
 - Use PascalCase for module tables, their public methods, exported names, and all instance fields (`self.*`). Use camelCase only for private module-level functions and purely local variables within a function scope. No underscore prefixes for private members.
 - Prefer `x ~= nil` / `x == nil` over `not x` / `if x` when the intent is a nil check.
 - Prefer `vector:FuzzyEq(Vector3.zero)` over `vector.Magnitude > epsilon` for is-this-vector-zero checks. Skips a `sqrt`, and `FuzzyEq`'s default tolerance matches input-deadzone semantics better than an arbitrary threshold.

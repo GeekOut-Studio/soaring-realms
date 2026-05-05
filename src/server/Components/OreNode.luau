@@ -278,30 +278,18 @@ end
 function OreNode:BeginMining(player: Player, outworlder: any, entry: NodeEntry)
 	local node = self
 	local elapsed = 0
-	local stopped = false
 
-	local action: Action
-	action = {
+	local action: Action = {
 		AllowsMovement = false,
 		Update = function(_self, dt)
-			if stopped then
-				return ActionTypes.Result.Fail
-			end
 			elapsed += dt
 			while elapsed >= SWING_INTERVAL do
 				elapsed -= SWING_INTERVAL
 				node:OnHit(player, entry)
-				if stopped then
-					return ActionTypes.Result.Fail
-				end
 			end
 			return ActionTypes.Result.Continue
 		end,
 		Stop = function(_self, _reason: StopReason)
-			if stopped then
-				return
-			end
-			stopped = true
 			node.ActiveMiners[player] = nil
 		end,
 	}

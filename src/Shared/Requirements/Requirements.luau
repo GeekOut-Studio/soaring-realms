@@ -16,7 +16,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Equipped = require(ReplicatedStorage.Shared.Requirements.Equipped)
-local InventoryHasRoomFor = require(ReplicatedStorage.Shared.Requirements.InventoryHasRoomFor)
+local InventoryHasRoomForEach = require(ReplicatedStorage.Shared.Requirements.InventoryHasRoomForEach)
 local SkillLevel = require(ReplicatedStorage.Shared.Requirements.SkillLevel)
 local RequirementsTypes = require(ReplicatedStorage.Shared.Types.RequirementsTypes)
 
@@ -38,10 +38,13 @@ Requirements.SkillLevel = SkillLevel.Make
 Requirements.Equipped = Equipped.Make
 
 --[=[
-	@prop InventoryHasRoomFor (itemKinds: {string}) -> Requirement
+	@prop InventoryHasRoomForEach (itemKinds: {string}) -> Requirement
 	@within Requirements
+	Passes when the player has room for at least one of *every* listed kind. Use
+	for actions whose outcome could be any of the listed kinds — e.g. weighted
+	ore drops, where we can't predict which drop will roll.
 ]=]
-Requirements.InventoryHasRoomFor = InventoryHasRoomFor.Make
+Requirements.InventoryHasRoomForEach = InventoryHasRoomForEach.Make
 
 --[=[
 	Runs `requirements` in order against `snapshot`, returning on the first

@@ -315,6 +315,14 @@ local function updateCrouchAnimations(self, isGrounded: boolean, isMoving: boole
 end
 
 function Outworlder:HeartbeatUpdate(dt: number)
+	local isMoving = OutworlderShared.IsMoving(self.ControllerManager)
+	local isGrounded = OutworlderShared.IsGrounded(self.ControllerManager)
+
+	if self.CurrentAction ~= nil and not self.CurrentAction.AllowsMovement and (isMoving or not isGrounded) then
+		self.CurrentAction:Stop("Interrupted")
+		self.CurrentAction = nil
+	end
+
 	if self.CurrentAction ~= nil then
 		local result = self.CurrentAction:Update(dt)
 		if result == "Complete" then
@@ -325,9 +333,6 @@ function Outworlder:HeartbeatUpdate(dt: number)
 			self.CurrentAction = nil
 		end
 	end
-
-	local isMoving = OutworlderShared.IsMoving(self.ControllerManager)
-	local isGrounded = OutworlderShared.IsGrounded(self.ControllerManager)
 	local drained = OutworlderShared.StepStaminaDrain(self.Stamina, self.MovementMode, isMoving, dt)
 	if drained < self.Stamina then
 		self.Stamina = drained

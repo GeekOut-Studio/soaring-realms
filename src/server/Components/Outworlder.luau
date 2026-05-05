@@ -213,6 +213,23 @@ function Outworlder:SetMovementMode(mode: MovementMode)
 end
 
 --[=[
+	Pivots the character to face `targetPoint` on the horizontal plane. Vertical
+	component of the delta is discarded so the character stays upright. No-ops when
+	the flat delta is approximately zero (avoids producing a `NaN` look-direction
+	when the target is directly above/below or coincident with the character).
+	@within Outworlder
+	@param targetPoint Vector3
+]=]
+function Outworlder:FaceTowards(targetPoint: Vector3)
+	local currentPosition = self.Instance:GetPivot().Position
+	local delta = (targetPoint - currentPosition) * Vector3.new(1, 0, 1)
+	if delta:FuzzyEq(Vector3.zero) then
+		return
+	end
+	self.Instance:PivotTo(CFrame.lookAlong(currentPosition, delta))
+end
+
+--[=[
 	Validates a client request to change movement mode.
 	Sprint requests are rejected when stamina is exhausted. Crouch requests are rejected
 	when the character is airborne so we never enter a crouch in mid-air. All other

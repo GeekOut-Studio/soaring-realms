@@ -303,6 +303,7 @@ function OreNode:BeginMining(player: Player, outworlder: any, entry: NodeEntry)
 		Action = action,
 		Entry = entry,
 	}
+	outworlder:FaceTowards(entry.Root.Position)
 	outworlder:StartAction(action)
 end
 

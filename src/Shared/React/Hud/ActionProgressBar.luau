@@ -6,9 +6,9 @@
 	local player's current action progress.
 
 	Subscribes to the local player's `OutworlderClient` `ActionProgressChanged`
-	signal directly. Hosts pass in only layout-related props (e.g. `LayoutOrder`);
-	the component manages its own visibility (renders nothing when no progress is
-	available) and its own animation state.
+	signal directly. Hosts pass in only layout-related props (e.g. `LayoutOrder`)
+	via `Native`; the component manages its own visibility (renders nothing when
+	no progress is available) and its own animation state.
 
 	The replicated `ActionProgress` payload may set either `CompletionTimestamp`
 	(server-time of cycle completion) or `Alpha` (direct 0..1). When the server
@@ -28,9 +28,8 @@ local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local ActionTypes = require(ReplicatedStorage.Shared.Types.ActionTypes)
 local ColorDefs = require(ReplicatedStorage.Shared.Defs.ColorDefs)
-local Label = require(ReplicatedStorage.Shared.React.Common.Label)
 local OutworlderClient = require(ReplicatedStorage.Shared.Components.OutworlderClient)
-local TextStroke = require(ReplicatedStorage.Shared.React.Common.TextStroke)
+local ProgressBar = require(ReplicatedStorage.Shared.React.Common.ProgressBar)
 
 type ActionProgress = ActionTypes.ActionProgress
 
@@ -90,31 +89,14 @@ local function ActionProgressBar(props: {
 		return nil
 	end
 
-	return e(
-		"Frame",
-		merge({
-			BorderSizePixel = 0,
-			BackgroundColor3 = ColorDefs.Black,
+	return e(ProgressBar, {
+		Native = merge({
 			Size = UDim2.fromOffset(0, BAR_HEIGHT),
 		}, props.Native),
-		{
-			Fill = e("Frame", {
-				BorderSizePixel = 0,
-				BackgroundColor3 = ColorDefs.ActionBarFill,
-				Size = fillBinding:map(function(v: number)
-					return UDim2.fromScale(v, 1)
-				end),
-			}),
-			LabelHolder = e(Label, {
-				Native = {
-					Text = progress.Name,
-					ZIndex = 2,
-				},
-			}, {
-				Stroke = e(TextStroke, { Native = {} }),
-			}),
-		}
-	)
+		FillColor = ColorDefs.ActionBarFill,
+		Alpha = fillBinding,
+		Label = progress.Name,
+	})
 end
 
 return ActionProgressBar

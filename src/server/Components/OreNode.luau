@@ -32,6 +32,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 local Workspace = game:GetService("Workspace")
 
+local Comm = require(ReplicatedStorage.Packages.Comm)
 local Component = require(ReplicatedStorage.Packages.Component)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local t = require(ReplicatedStorage.Packages.t)
@@ -62,6 +63,7 @@ type State = "Normal" | "Bonus" | "Depleted"
 --[=[
 	@interface NodeEntry
 	@within OreNode
+	@field Key string -- Stable identifier sent to the client. `"Center"` or `"Bonus<i>"` (1-based).
 	@field Root BasePart -- Invisible part holding the proximity prompt.
 	@field Prompt ProximityPrompt
 	@field Model Model? -- The visual whose `Parent` we toggle. `nil` for the center entry, which always exists.
@@ -70,6 +72,7 @@ type State = "Normal" | "Bonus" | "Depleted"
 	@field ContributesToBreak boolean -- Whether hits also fill the shared break meter (center only).
 ]=]
 type NodeEntry = {
+	Key: string,
 	Root: BasePart,
 	Prompt: ProximityPrompt,
 	Model: Model?,
@@ -149,6 +152,12 @@ function OreNode:Construct()
 	self.ActiveMiners = {} :: { [Player]: ActiveMiner }
 	self.StateThread = nil :: thread?
 
+	self.Comm = Comm.ServerComm.new(self.Instance, "OreNode")
+	self.Trove:Add(self.Comm)
+	self.StateProperty = self.Comm:CreateProperty("State", self.State)
+	self.BreakProperty = self.Comm:CreateProperty("Break", self.BreakProgress)
+	self.HitSignal = self.Comm:CreateSignal("Hit")
+
 	local normalChild = self.Instance:FindFirstChild("Normal")
 	local depletedChild = self.Instance:FindFirstChild("Depleted")
 	local bonusChild = self.Instance:FindFirstChild("Bonus")
@@ -170,6 +179,7 @@ function OreNode:Construct()
 	self.Trove:Add(centerRoot)
 	local centerPrompt = makePrompt("Mine", self.Def.Name, centerRoot)
 	local centerEntry: NodeEntry = {
+		Key = "Center",
 		Root = centerRoot,
 		Prompt = centerPrompt,
 		Model = nil,
@@ -183,7 +193,7 @@ function OreNode:Construct()
 	end)
 
 	self.BonusEntries = {} :: { NodeEntry }
-	for _, child in bonusFolder:GetChildren() do
+	for index, child in bonusFolder:GetChildren() do
 		if not child:IsA("Model") then
 			continue
 		end
@@ -195,6 +205,7 @@ function OreNode:Construct()
 		local prompt = makePrompt("Mine", self.Def.Name, root)
 		prompt.Enabled = false
 		local entry: NodeEntry = {
+			Key = `Bonus{index}`,
 			Root = root,
 			Prompt = prompt,
 			Model = child,
@@ -325,6 +336,7 @@ function OreNode:OnHit(player: Player, entry: NodeEntry)
 		self:GrantProgressFill(player)
 	end
 	entry.PlayerProgress[player] = newProgress
+	self.HitSignal:Fire(player, { Root = entry.Root, EntryKey = entry.Key, Progress = newProgress })
 
 	if entry.ContributesToBreak and self.State == "Normal" then
 		self.BreakProgress += SWING_INTERVAL / def.BreakDifficulty
@@ -332,6 +344,7 @@ function OreNode:OnHit(player: Player, entry: NodeEntry)
 			self.BreakProgress = 0
 			self:EnterBonus()
 		end
+		self.BreakProperty:Set(self.BreakProgress)
 	end
 end
 
@@ -374,6 +387,8 @@ end
 ]=]
 function OreNode:EnterBonus()
 	self.State = "Bonus"
+	self.StateProperty:Set(self.State)
+	self.BreakProperty:Set(self.BreakProgress)
 	self:ApplyCenterVisual(true)
 	for _, entry in self.BonusEntries do
 		entry.PlayerProgress = {}
@@ -396,6 +411,7 @@ end
 ]=]
 function OreNode:EnterDepleted()
 	self.State = "Depleted"
+	self.StateProperty:Set(self.State)
 	for _, entry in self.BonusEntries do
 		entry.Prompt.Enabled = false
 		assert(entry.Model ~= nil, "bonus entry missing model")
@@ -420,7 +436,9 @@ end
 ]=]
 function OreNode:EnterNormal()
 	self.State = "Normal"
+	self.StateProperty:Set(self.State)
 	self.BreakProgress = 0
+	self.BreakProperty:Set(self.BreakProgress)
 	self:ApplyCenterVisual(false)
 end
 

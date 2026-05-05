@@ -15,6 +15,7 @@ local Sift = require(ReplicatedStorage.Packages.Sift)
 local t = require(ReplicatedStorage.Packages.t)
 
 local DataServer = require(ServerScriptService.Server.Servers.DataServer)
+local InventoryShared = require(ReplicatedStorage.Shared.InventoryShared)
 local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
 local InventoryTypes = require(ReplicatedStorage.Shared.Types.InventoryTypes)
 
@@ -25,66 +26,8 @@ local InventoryServer = {}
 
 local inventoryProperty
 
--- Private helpers
-
 local function asInventory(data: any): Inventory
 	return (data.Inventory :: any) :: Inventory
-end
-
--- Recursive deep equality used to determine whether two Meta tables match,
--- and therefore whether two stacks of the same kind can be merged.
-local function metaEqual(a: { [string]: any }?, b: { [string]: any }?): boolean
-	if a == b then
-		return true
-	end
-	if a == nil or b == nil then
-		return false
-	end
-	for k, v in a do
-		local bv = b[k]
-		if type(v) == "table" then
-			if not metaEqual(v :: any, bv :: any) then
-				return false
-			end
-		elseif bv ~= v then
-			return false
-		end
-	end
-	for k in b do
-		if a[k] == nil then
-			return false
-		end
-	end
-	return true
-end
-
-local function countFreeSlots(inventory: Inventory): number
-	local count = 0
-	for i = 1, InventoryTypes.Size do
-		if inventory[tostring(i)] == nil then
-			count += 1
-		end
-	end
-	return count
-end
-
--- Computes how many more items of a stackable kind with matching Meta can fit.
-local function stackableCapacity(
-	inventory: Inventory,
-	kind: string,
-	maxStackSize: number,
-	meta: { [string]: any }?
-): number
-	local capacity = 0
-	for i = 1, InventoryTypes.Size do
-		local item = inventory[tostring(i)]
-		if item == nil then
-			capacity += maxStackSize
-		elseif item.Kind == kind and metaEqual(item.Meta, meta) then
-			capacity += maxStackSize - (item.Count or 0)
-		end
-	end
-	return capacity
 end
 
 -- Commits a new inventory to DataServer and replicates it to the client.
@@ -144,7 +87,7 @@ function InventoryServer.AddItem(player: Player, kind: string, count: number?, m
 	if def.MaxStackSize ~= nil then
 		local maxStackSize = def.MaxStackSize
 
-		if stackableCapacity(inventory, kind, maxStackSize, meta) < amount then
+		if InventoryShared.StackableCapacity(inventory, kind, maxStackSize, meta) < amount then
 			return false
 		end
 
@@ -156,7 +99,7 @@ function InventoryServer.AddItem(player: Player, kind: string, count: number?, m
 			end
 			local key = tostring(i)
 			local item = inventory[key]
-			if item ~= nil and item.Kind == kind and metaEqual(item.Meta, meta) then
+			if item ~= nil and item.Kind == kind and InventoryShared.MetaEqual(item.Meta, meta) then
 				local room = maxStackSize - (item.Count or 0)
 				if room > 0 then
 					local toAdd = math.min(room, remaining)
@@ -179,7 +122,7 @@ function InventoryServer.AddItem(player: Player, kind: string, count: number?, m
 			end
 		end
 	else
-		if countFreeSlots(inventory) < amount then
+		if InventoryShared.CountFreeSlots(inventory) < amount then
 			return false
 		end
 
@@ -288,7 +231,11 @@ function InventoryServer.MoveItem(player: Player, fromSlot: string, toSlot: stri
 	if toItem == nil then
 		newInventory[toSlot] = fromItem
 		newInventory[fromSlot] = nil
-	elseif def.MaxStackSize ~= nil and toItem.Kind == fromItem.Kind and metaEqual(toItem.Meta, fromItem.Meta) then
+	elseif
+		def.MaxStackSize ~= nil
+		and toItem.Kind == fromItem.Kind
+		and InventoryShared.MetaEqual(toItem.Meta, fromItem.Meta)
+	then
 		-- Merge stacks; swap if destination is already full.
 		local maxStackSize = def.MaxStackSize
 		local fromCount = fromItem.Count or 0
@@ -360,7 +307,7 @@ function InventoryServer.SplitStack(player: Player, fromSlot: string, toSlot: st
 
 	local toItem = inventory[toSlot]
 	if toItem ~= nil then
-		if toItem.Kind ~= fromItem.Kind or not metaEqual(toItem.Meta, fromItem.Meta) then
+		if toItem.Kind ~= fromItem.Kind or not InventoryShared.MetaEqual(toItem.Meta, fromItem.Meta) then
 			return false
 		end
 		if (toItem.Count or 0) + count > def.MaxStackSize then

@@ -348,10 +348,12 @@ function OreNode:BeginMining(player: Player, outworlder: any, entry: NodeEntry)
 				end
 				node:OnHit(player, entry)
 				actionSelf.CompletionTimestamp = Workspace:GetServerTimeNow() + interval
+				outworlder:AnimationPlayWithDuration("ToolOverheadSwing", interval)
 			end
 			return ActionTypes.Result.Continue
 		end,
 		Stop = function(_self, _reason: StopReason)
+			outworlder:AnimationStop("ToolOverheadSwing", 0.1)
 			node.ActiveMiners[player] = nil
 		end,
 	}
@@ -363,6 +365,7 @@ function OreNode:BeginMining(player: Player, outworlder: any, entry: NodeEntry)
 		Stats = stats,
 	}
 	outworlder:FaceTowards(entry.Root.Position)
+	outworlder:AnimationPlayWithDuration("ToolOverheadSwing", interval)
 	outworlder:StartAction(action)
 end
 

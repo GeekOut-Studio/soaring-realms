@@ -43,7 +43,7 @@ local Defs = {
 		AssetPath = "Base/Tools/PickaxeCopper",
 		Stats = {
 			Mining = {
-				Interval = 1,
+				Interval = 1.75,
 				Power = { Min = 0.9, Max = 1.1 },
 			},
 		},

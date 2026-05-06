@@ -307,6 +307,23 @@ function Outworlder:AnimationPlay(kind: AnimationKind, ...: any)
 end
 
 --[=[
+	Plays the animation identified by `kind` scaled so that one full play takes
+	approximately `duration` seconds. Speed is computed as `track.Length /
+	duration`; if the track's `Length` is not yet populated (animation data still
+	loading on first use) or `duration` is non-positive, falls back to native
+	speed. Subsequent calls after the first will use the correct speed.
+	@within Outworlder
+	@server
+	@param kind AnimationKind
+	@param duration number
+]=]
+function Outworlder:AnimationPlayWithDuration(kind: AnimationKind, duration: number)
+	local track = getOrLoadTrack(self, kind)
+	local speed = if track.Length > 0 and duration > 0 then track.Length / duration else 1
+	track:Play(nil, nil, speed)
+end
+
+--[=[
 	Stops the animation identified by `kind`. Returns silently if the track was
 	never loaded — stopping an animation we are definitely not playing is a
 	no-op. Extra arguments are forwarded to `AnimationTrack:Stop` (`fadeTime`).

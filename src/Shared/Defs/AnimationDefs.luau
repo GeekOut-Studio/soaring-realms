@@ -4,12 +4,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Sift = require(ReplicatedStorage.Packages.Sift)
 
-export type AnimationKind = "CrouchIdle" | "CrouchWalk"
+export type AnimationKind = "CrouchIdle" | "CrouchWalk" | "ToolOverheadSwing"
 
 local Defs: { [AnimationKind]: number } = {
 	CrouchIdle = 90752562165133,
 	CrouchWalk = 96011308580698,
 	ToolOverheadSwing = 134572391725643,
+	ToolShoulderedIdle = 125738314234655,
 }
 
 local function transform(defs: { [AnimationKind]: number }): { [AnimationKind]: Animation }

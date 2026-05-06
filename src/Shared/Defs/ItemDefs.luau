@@ -35,6 +35,11 @@ local Defs = {
 		EquipSlots = { "MainHandMelee" },
 		AssetPath = "Base/Weapons/SwordCopper",
 	},
+	PickaxeCopper = {
+		Name = "Copper Pickaxe",
+		EquipSlots = { "MainHandMelee" },
+		AssetPath = "Base/Tools/PickaxeCopper",
+	},
 }
 
 local function transform(defs): ItemDefs

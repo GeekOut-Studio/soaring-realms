@@ -16,6 +16,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Equipped = require(ReplicatedStorage.Shared.Requirements.Equipped)
+local HasEquipmentWithStats = require(ReplicatedStorage.Shared.Requirements.HasEquipmentWithStats)
 local InventoryHasRoomForEach = require(ReplicatedStorage.Shared.Requirements.InventoryHasRoomForEach)
 local SkillLevel = require(ReplicatedStorage.Shared.Requirements.SkillLevel)
 local RequirementsTypes = require(ReplicatedStorage.Shared.Types.RequirementsTypes)
@@ -36,6 +37,13 @@ Requirements.SkillLevel = SkillLevel.Make
 	@within Requirements
 ]=]
 Requirements.Equipped = Equipped.Make
+
+--[=[
+	@prop HasEquipmentWithStats (slot: EquipmentSlot, statClass: string) -> Requirement
+	@within Requirements
+	Passes when the item equipped in `slot` has a non-nil `ItemDef.Stats[statClass]`.
+]=]
+Requirements.HasEquipmentWithStats = HasEquipmentWithStats.Make
 
 --[=[
 	@prop InventoryHasRoomForEach (itemKinds: {string}) -> Requirement

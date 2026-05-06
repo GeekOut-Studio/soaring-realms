@@ -5,6 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Sift = require(ReplicatedStorage.Packages.Sift)
 
 local EquipmentTypes = require(ReplicatedStorage.Shared.Types.EquipmentTypes)
+local ItemStatsTypes = require(ReplicatedStorage.Shared.Types.ItemStatsTypes)
 
 export type ItemDef = {
 	Kind: string,
@@ -12,6 +13,7 @@ export type ItemDef = {
 	MaxStackSize: number?, -- nil = not stackable (one item per slot)
 	EquipSlots: { EquipmentTypes.EquipmentSlot }?, -- nil = not equippable. Listed in display order.
 	AssetPath: string?, -- nil = no rendered asset. Slash-delimited path under ServerStorage.Assets.
+	Stats: ItemStatsTypes.Stats?, -- nil = no gameplay-class stats. Used to gate and parameterize gathering/combat actions.
 }
 
 export type ItemDefs = { [string]: ItemDef }
@@ -39,6 +41,12 @@ local Defs = {
 		Name = "Copper Pickaxe",
 		EquipSlots = { "MainHandMelee" },
 		AssetPath = "Base/Tools/PickaxeCopper",
+		Stats = {
+			Mining = {
+				Interval = 1,
+				Power = { Min = 0.9, Max = 1.1 },
+			},
+		},
 	},
 }
 

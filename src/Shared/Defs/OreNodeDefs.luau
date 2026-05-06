@@ -6,10 +6,11 @@
 	`OreNodeKind`, which is the value of the `OreNodeKind` attribute on each
 	`OreNode`-tagged model.
 
-	The `transform` step automatically prepends an `InventoryHasRoomForEach`
-	requirement derived from each def's `Drops`. Def authors don't need to mirror
-	the drop list into a manual requirement — keeping the two in sync would be a
-	maintenance trap.
+	The `transform` step automatically prepends two requirements every ore node
+	shares: `HasEquipmentWithStats("MainHandMelee", "Mining")` (a pickaxe-class
+	tool in the melee slot) and `InventoryHasRoomForEach(<drop kinds>)` (room for
+	any possible drop). Def authors don't restate either — keeping them in sync
+	by hand would be a maintenance trap.
 ]=]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -48,9 +49,9 @@ export type Drops = string | { DropEntry }
 	@within OreNodeDefs
 	@field Kind OreNodeKind
 	@field Name string -- Human-readable name shown on the proximity prompt.
-	@field Requirements {Requirement} -- Mining-attempt gates. Auto-prepended with `InventoryHasRoomForEach(<drop kinds>)` during `transform`.
-	@field ProgressDifficulty number -- Average seconds for a solo player to fill the per-player progress meter.
-	@field BreakDifficulty number -- Average seconds for a solo player to fill the shared break meter (significantly larger than `ProgressDifficulty`).
+	@field Requirements {Requirement} -- Mining-attempt gates. Auto-prepended with `HasEquipmentWithStats("Mining")` and `InventoryHasRoomForEach(<drop kinds>)` during `transform`.
+	@field ProgressHealth number -- HP drained from the per-player progress meter. Each swing deals `power * EfficiencyMultiplier` damage.
+	@field BreakHealth number -- HP drained from the shared break meter. Each contributing swing deals `power` damage. Significantly larger than `ProgressHealth`.
 	@field ExperiencePerProgress number -- Mining experience awarded each time the per-player progress meter fills.
 	@field Drops Drops -- What item is granted when the per-player progress meter fills.
 ]=]
@@ -58,8 +59,8 @@ export type OreNodeDef = {
 	Kind: OreNodeKind,
 	Name: string,
 	Requirements: { Requirements.Requirement },
-	ProgressDifficulty: number,
-	BreakDifficulty: number,
+	ProgressHealth: number,
+	BreakHealth: number,
 	ExperiencePerProgress: number,
 	Drops: Drops,
 }
@@ -72,8 +73,8 @@ local Defs = {
 		Requirements = {
 			Requirements.SkillLevel("Mining", 1),
 		},
-		ProgressDifficulty = 5,
-		BreakDifficulty = 25,
+		ProgressHealth = 5,
+		BreakHealth = 25,
 		ExperiencePerProgress = 10,
 		Drops = "Stone",
 	},
@@ -82,8 +83,8 @@ local Defs = {
 		Requirements = {
 			Requirements.SkillLevel("Mining", 1),
 		},
-		ProgressDifficulty = 5,
-		BreakDifficulty = 25,
+		ProgressHealth = 5,
+		BreakHealth = 25,
 		ExperiencePerProgress = 10,
 		Drops = {
 			{ Kind = "OreCopper", Weight = 3 },
@@ -103,8 +104,9 @@ end
 
 local function transform(defs): OreNodeDefs
 	return Sift.Dictionary.map(defs, function(def, kind)
-		local autoRequirement = Requirements.InventoryHasRoomForEach(dropsToKinds(def.Drops))
-		local requirements = Sift.Array.concat({ autoRequirement }, def.Requirements)
+		local toolRequirement = Requirements.HasEquipmentWithStats("MainHandMelee", "Mining")
+		local roomRequirement = Requirements.InventoryHasRoomForEach(dropsToKinds(def.Drops))
+		local requirements = Sift.Array.concat({ toolRequirement, roomRequirement }, def.Requirements)
 		return Sift.Dictionary.merge(def, {
 			Kind = kind,
 			Requirements = requirements,

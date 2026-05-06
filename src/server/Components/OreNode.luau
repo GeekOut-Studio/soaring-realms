@@ -37,11 +37,14 @@ local Component = require(ReplicatedStorage.Packages.Component)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local t = require(ReplicatedStorage.Packages.t)
 
+local EquipmentServer = require(ServerScriptService.Server.Servers.EquipmentServer)
 local InventoryServer = require(ServerScriptService.Server.Servers.InventoryServer)
 local RequirementsServer = require(ServerScriptService.Server.Servers.RequirementsServer)
 local SkillServer = require(ServerScriptService.Server.Servers.SkillServer)
 local Outworlder = require(ServerScriptService.Server.Components.Outworlder)
 local ActionTypes = require(ReplicatedStorage.Shared.Types.ActionTypes)
+local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
+local ItemStatsTypes = require(ReplicatedStorage.Shared.Types.ItemStatsTypes)
 local OreNodeDefs = require(ReplicatedStorage.Shared.Defs.OreNodeDefs)
 local WeightedRandom = require(ReplicatedStorage.Shared.WeightedRandom)
 
@@ -49,8 +52,8 @@ type Action = ActionTypes.Action
 type StopReason = ActionTypes.StopReason
 type OreNodeDef = OreNodeDefs.OreNodeDef
 type Drops = OreNodeDefs.Drops
+type MiningStats = ItemStatsTypes.MiningStats
 
-local SWING_INTERVAL = 1
 local BONUS_DURATION = 15
 local RECHARGE_DURATION = 60
 local PROMPT_DISTANCE = 10
@@ -86,6 +89,7 @@ type ActiveMiner = {
 	Outworlder: any,
 	Action: Action,
 	Entry: NodeEntry,
+	Stats: MiningStats,
 }
 
 local OreNode = Component.new({
@@ -141,6 +145,19 @@ local function pickDrop(drops: Drops): string
 	return WeightedRandom.Pick(drops).Kind
 end
 
+local function findMiningStats(player: Player): MiningStats?
+	local equipment = EquipmentServer.GetEquipment(player)
+	local item = equipment.MainHandMelee
+	if item == nil then
+		return nil
+	end
+	local def = ItemDefs[item.Kind]
+	if def == nil or def.Stats == nil then
+		return nil
+	end
+	return def.Stats.Mining
+end
+
 function OreNode:Construct()
 	local kind = self.Instance:GetAttribute("OreNodeKind")
 	local name = self.Instance:GetFullName()
@@ -152,6 +169,7 @@ function OreNode:Construct()
 	self.BreakProgress = 0
 	self.ActiveMiners = {} :: { [Player]: ActiveMiner }
 	self.StateThread = nil :: thread?
+	self.Random = Random.new()
 
 	self.Comm = Comm.ServerComm.new(self.Instance, "OreNode")
 	self.Trove:Add(self.Comm)
@@ -261,7 +279,8 @@ end
 
 --[=[
 	Routes a proximity-prompt activation into a new mining action on the player's
-	`Outworlder`.
+	`Outworlder`. Requirements gating happens in `BeginMining` so it isn't
+	duplicated against the per-swing recheck.
 	@within OreNode
 	@param player Player
 	@param entry NodeEntry
@@ -275,19 +294,21 @@ function OreNode:HandlePromptTriggered(player: Player, entry: NodeEntry)
 	if outworlder == nil then
 		return
 	end
-
-	local ok, message = RequirementsServer.CheckForPlayer(player, self.Def.Requirements)
-	if not ok then
-		outworlder:NotifyActionFailed(message or "You can't do that right now.")
-		return
-	end
 	self:BeginMining(player, outworlder, entry)
 end
 
 --[=[
-	Constructs the looping mining `Action` for `player` on the given entry and
-	hands it to their `Outworlder`. Movement-based interruption is handled by
-	`Outworlder` (it consults `Action.AllowsMovement`).
+	Gates entry to the mining action on `self.Def.Requirements`, then constructs
+	the looping action for `player` on the given entry and hands it to their
+	`Outworlder`. Requirements are re-checked at the top of every swing tick:
+	any failure (lost skill buff, filled inventory, unequipped tool, …) ends the
+	action with `Result.Fail` and a notification.
+
+	The pickaxe's `MiningStats` are snapshotted here, so a mid-action equipment
+	swap won't change the swing cadence or power until the player re-triggers
+	the prompt. (Unequipping the tool entirely is caught by the per-swing
+	requirements recheck and stops the action.) Movement-based interruption is
+	handled by `Outworlder` (it consults `Action.AllowsMovement`).
 	@within OreNode
 	@param player Player
 	@param outworlder any -- The player's `Outworlder` component.
@@ -295,19 +316,38 @@ end
 ]=]
 function OreNode:BeginMining(player: Player, outworlder: any, entry: NodeEntry)
 	local node = self
+	local def = self.Def
+
+	local ok, message = RequirementsServer.CheckForPlayer(player, def.Requirements)
+	if not ok then
+		outworlder:NotifyActionFailed(message or "You can't do that right now.")
+		return
+	end
+	-- The HasEquipmentWithStats("MainHandMelee", "Mining") requirement above
+	-- guarantees this lookup succeeds; the assertion is defensive against drift.
+	local stats = findMiningStats(player)
+	assert(stats ~= nil, "mining requirement passed but no mining stats found")
+
+	local interval = stats.Interval
 	local elapsed = 0
 
-	local action: Action = {
+	local action: Action
+	action = {
 		Name = "Mining",
 		AllowsMovement = false,
-		CompletionTimestamp = Workspace:GetServerTimeNow() + SWING_INTERVAL,
+		CompletionTimestamp = Workspace:GetServerTimeNow() + interval,
 		Alpha = nil,
 		Update = function(actionSelf, dt)
 			elapsed += dt
-			while elapsed >= SWING_INTERVAL do
-				elapsed -= SWING_INTERVAL
+			while elapsed >= interval do
+				elapsed -= interval
+				local stillOk, stillMessage = RequirementsServer.CheckForPlayer(player, def.Requirements)
+				if not stillOk then
+					outworlder:NotifyActionFailed(stillMessage or "You can't do that right now.")
+					return ActionTypes.Result.Fail
+				end
 				node:OnHit(player, entry)
-				actionSelf.CompletionTimestamp = Workspace:GetServerTimeNow() + SWING_INTERVAL
+				actionSelf.CompletionTimestamp = Workspace:GetServerTimeNow() + interval
 			end
 			return ActionTypes.Result.Continue
 		end,
@@ -320,22 +360,28 @@ function OreNode:BeginMining(player: Player, outworlder: any, entry: NodeEntry)
 		Outworlder = outworlder,
 		Action = action,
 		Entry = entry,
+		Stats = stats,
 	}
 	outworlder:FaceTowards(entry.Root.Position)
 	outworlder:StartAction(action)
 end
 
 --[=[
-	Applies the consequences of a single pickaxe swing: increments the entry's
-	progress meter (scaled by `EfficiencyMultiplier`), grants drop+XP on a fill,
-	and ticks the shared break meter when the entry contributes to it.
+	Applies the consequences of a single pickaxe swing. One power value is rolled
+	from the miner's `Stats.Power` range and used as damage against both the
+	per-player progress meter (scaled by `EfficiencyMultiplier`) and, when the
+	entry contributes, the shared break meter. Grants drop+XP on a progress fill.
 	@within OreNode
 	@param player Player
 	@param entry NodeEntry
 ]=]
 function OreNode:OnHit(player: Player, entry: NodeEntry)
+	local miner = self.ActiveMiners[player]
+	assert(miner ~= nil, "OnHit called for player with no active miner")
 	local def = self.Def
-	local progressIncrement = SWING_INTERVAL / def.ProgressDifficulty * entry.EfficiencyMultiplier
+	local power = miner.Stats.Power
+	local rolled = self.Random:NextNumber(power.Min, power.Max)
+	local progressIncrement = rolled * entry.EfficiencyMultiplier / def.ProgressHealth
 
 	local newProgress = (entry.PlayerProgress[player] or 0) + progressIncrement
 	while newProgress >= 1 do
@@ -346,7 +392,7 @@ function OreNode:OnHit(player: Player, entry: NodeEntry)
 	self.HitSignal:Fire(player, { Root = entry.Root, EntryKey = entry.Key, Progress = newProgress })
 
 	if entry.ContributesToBreak and self.State == "Normal" then
-		self.BreakProgress += SWING_INTERVAL / def.BreakDifficulty
+		self.BreakProgress += rolled / def.BreakHealth
 		if self.BreakProgress >= 1 then
 			self.BreakProgress = 0
 			self:EnterBonus()

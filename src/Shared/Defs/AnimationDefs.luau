@@ -9,6 +9,7 @@ export type AnimationKind = "CrouchIdle" | "CrouchWalk"
 local Defs: { [AnimationKind]: number } = {
 	CrouchIdle = 90752562165133,
 	CrouchWalk = 96011308580698,
+	ToolOverheadSwing = 134572391725643,
 }
 
 local function transform(defs: { [AnimationKind]: number }): { [AnimationKind]: Animation }

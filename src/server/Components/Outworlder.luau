@@ -21,13 +21,14 @@ local EquipmentServer = require(ServerScriptService.Server.Servers.EquipmentServ
 local ActionTypes = require(ReplicatedStorage.Shared.Types.ActionTypes)
 local AnimationDefs = require(ReplicatedStorage.Shared.Defs.AnimationDefs)
 local EquipmentTypes = require(ReplicatedStorage.Shared.Types.EquipmentTypes)
+local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
 local MovementTypes = require(ReplicatedStorage.Shared.Types.MovementTypes)
 local OutworlderShared = require(ReplicatedStorage.Shared.Components.OutworlderShared)
 
 type Action = ActionTypes.Action
 type StopReason = ActionTypes.StopReason
 type MovementMode = MovementTypes.MovementMode
-type AnimationKind = AnimationDefs.AnimationKind
+type Equipment = EquipmentTypes.Equipment
 
 local WAIT_FOR_CHILD_TIMEOUT = 10
 
@@ -56,16 +57,24 @@ local Outworlder = Component.new({
 ]=]
 
 --[=[
-	@prop AnimationTracks {[AnimationKind]: AnimationTrack}
+	@prop AnimationTracks {[string]: AnimationTrack}
 	@within Outworlder
 	Cache of `AnimationTrack`s lazily loaded by `AnimationPlay`. Keyed by
-	`AnimationKind` from `AnimationDefs`.
+	the animation name from `AnimationDefs`.
+]=]
+
+--[=[
+	@prop EquipmentIdleAnimations {[string]: true}
+	@within Outworlder
+	Set of idle-animation names currently driven by equipped items. Diffed on
+	every equipment change to start newly added idles and stop removed ones.
 ]=]
 
 function Outworlder:Construct()
 	self.CurrentAction = nil :: Action?
 	self.Trove = Trove.new()
-	self.AnimationTracks = {} :: { [AnimationKind]: AnimationTrack }
+	self.AnimationTracks = {} :: { [string]: AnimationTrack }
+	self.EquipmentIdleAnimations = {} :: { [string]: true }
 	self.Animator = nil :: Animator?
 
 	local player = Players:GetPlayerFromCharacter(self.Instance)
@@ -99,6 +108,7 @@ function Outworlder:Construct()
 
 	self.Trove:Add(EquipmentServer.ObserveEquipment(player, function(equipment)
 		self.EquipmentProperty:Set(equipment)
+		self:UpdateEquipmentIdleAnimations(equipment)
 	end))
 end
 
@@ -283,7 +293,7 @@ function Outworlder:GetAnimator(): Animator
 	return animator
 end
 
-local function getOrLoadTrack(self, kind: AnimationKind): AnimationTrack
+local function getOrLoadTrack(self, kind: string): AnimationTrack
 	local track = self.AnimationTracks[kind]
 	if track ~= nil then
 		return track
@@ -300,9 +310,9 @@ end
 	`speed`).
 	@within Outworlder
 	@server
-	@param kind AnimationKind
+	@param kind string
 ]=]
-function Outworlder:AnimationPlay(kind: AnimationKind, ...: any)
+function Outworlder:AnimationPlay(kind: string, ...: any)
 	getOrLoadTrack(self, kind):Play(...)
 end
 
@@ -314,10 +324,10 @@ end
 	speed. Subsequent calls after the first will use the correct speed.
 	@within Outworlder
 	@server
-	@param kind AnimationKind
+	@param kind string
 	@param duration number
 ]=]
-function Outworlder:AnimationPlayWithDuration(kind: AnimationKind, duration: number)
+function Outworlder:AnimationPlayWithDuration(kind: string, duration: number)
 	local track = getOrLoadTrack(self, kind)
 	local speed = if track.Length > 0 and duration > 0 then track.Length / duration else 1
 	track:Play(nil, nil, speed)
@@ -329,9 +339,9 @@ end
 	no-op. Extra arguments are forwarded to `AnimationTrack:Stop` (`fadeTime`).
 	@within Outworlder
 	@server
-	@param kind AnimationKind
+	@param kind string
 ]=]
-function Outworlder:AnimationStop(kind: AnimationKind, ...: any)
+function Outworlder:AnimationStop(kind: string, ...: any)
 	local track = self.AnimationTracks[kind]
 	if track == nil then
 		return
@@ -344,9 +354,9 @@ end
 	before stopping with no fade. Returns silently if the track was never loaded.
 	@within Outworlder
 	@server
-	@param kind AnimationKind
+	@param kind string
 ]=]
-function Outworlder:AnimationStopHard(kind: AnimationKind)
+function Outworlder:AnimationStopHard(kind: string)
 	local track = self.AnimationTracks[kind]
 	if track == nil then
 		return
@@ -374,12 +384,43 @@ end
 	semantics of the rest of the animation API.
 	@within Outworlder
 	@server
-	@param kind AnimationKind
+	@param kind string
 	@return boolean
 ]=]
-function Outworlder:AnimationIsPlaying(kind: AnimationKind): boolean
+function Outworlder:AnimationIsPlaying(kind: string): boolean
 	local track = self.AnimationTracks[kind]
 	return track ~= nil and track.IsPlaying
+end
+
+--[=[
+	Reconciles the set of equipment-driven idle animations with `equipment`.
+	Each item's `ItemDef.IdleAnimation` (when present) contributes one looping
+	idle track; multiple equipped items layer naturally via `AnimationPriority`.
+	Newly added kinds are played, removed kinds are stopped.
+	@within Outworlder
+	@server
+	@param equipment Equipment
+]=]
+function Outworlder:UpdateEquipmentIdleAnimations(equipment: Equipment)
+	local desired: { [string]: true } = {}
+	for _, item in equipment do
+		local def = ItemDefs[item.Kind]
+		if def ~= nil and def.IdleAnimation ~= nil then
+			desired[def.IdleAnimation] = true
+		end
+	end
+
+	for kind in self.EquipmentIdleAnimations do
+		if not desired[kind] then
+			self:AnimationStop(kind)
+		end
+	end
+	for kind in desired do
+		if not self.EquipmentIdleAnimations[kind] then
+			self:AnimationPlay(kind)
+		end
+	end
+	self.EquipmentIdleAnimations = desired
 end
 
 local function updateCrouchAnimations(self, isGrounded: boolean, isMoving: boolean)

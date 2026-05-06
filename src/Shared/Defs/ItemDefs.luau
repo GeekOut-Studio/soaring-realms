@@ -14,6 +14,7 @@ export type ItemDef = {
 	EquipSlots: { EquipmentTypes.EquipmentSlot }?, -- nil = not equippable. Listed in display order.
 	AssetPath: string?, -- nil = no rendered asset. Slash-delimited path under ServerStorage.Assets.
 	Stats: ItemStatsTypes.Stats?, -- nil = no gameplay-class stats. Used to gate and parameterize gathering/combat actions.
+	IdleAnimation: string?, -- nil = no idle pose. Animation name from `AnimationDefs` played on the equipping `Outworlder` while this item is equipped.
 }
 
 export type ItemDefs = { [string]: ItemDef }
@@ -41,6 +42,7 @@ local Defs = {
 		Name = "Copper Pickaxe",
 		EquipSlots = { "MainHandMelee" },
 		AssetPath = "Base/Tools/PickaxeCopper",
+		IdleAnimation = "ToolShoulderedIdle",
 		Stats = {
 			Mining = {
 				Interval = 1.75,

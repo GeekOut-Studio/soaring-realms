@@ -36,7 +36,6 @@ end
 	Returns `(ok: boolean, message: string?)` for `requirements` against the
 	local player's currently-replicated state.
 	@within RequirementsClient
-	@client
 	@param requirements {Requirement}
 	@return (boolean, string?)
 ]=]
@@ -49,7 +48,6 @@ end
 	`callback(ok, message?)` immediately and on every change. Returns a function
 	that disconnects all subscriptions when called.
 	@within RequirementsClient
-	@client
 	@param requirements {Requirement}
 	@param callback (ok: boolean, message: string?) -> ()
 	@return () -> ()

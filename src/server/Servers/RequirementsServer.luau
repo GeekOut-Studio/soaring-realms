@@ -19,7 +19,6 @@ local RequirementsServer = {}
 	Returns `(ok: boolean, message: string?)` reflecting the first failure in
 	`requirements` against the player's current data.
 	@within RequirementsServer
-	@server
 	@param player Player
 	@param requirements {Requirement}
 	@return (boolean, string?)

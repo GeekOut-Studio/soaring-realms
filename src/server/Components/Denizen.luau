@@ -195,7 +195,6 @@ end
 	under the model. Hands physics ownership of the assembly to the server. Everything
 	created here is added to `self.Trove` so it's torn down when the component stops.
 	@within Denizen
-	@server
 	@private
 ]=]
 function Denizen:SetUpController()
@@ -238,7 +237,6 @@ end
 	Returns the team identifier for this denizen, sourced from the def. `nil` means the
 	denizen is hostile to everyone. Implements the `Combatant` interface.
 	@within Denizen
-	@server
 	@return string?
 ]=]
 function Denizen:GetTeam(): string?
@@ -249,7 +247,6 @@ end
 	Returns the denizen's pivot CFrame (position + facing). Implements the `Combatant`
 	interface for combat-system range and direction checks.
 	@within Denizen
-	@server
 	@return CFrame
 ]=]
 function Denizen:GetCFrame(): CFrame
@@ -260,7 +257,6 @@ end
 	Sets a destination point. The denizen will steer toward it on every heartbeat until
 	it arrives (within `ARRIVAL_THRESHOLD`) or `StopMoving` is called.
 	@within Denizen
-	@server
 	@param point Vector3
 ]=]
 function Denizen:MoveTo(point: Vector3)
@@ -271,7 +267,6 @@ end
 	Sets an explicit facing direction. While set, the denizen faces this direction
 	regardless of movement. Pass `nil` to fall back to facing along movement.
 	@within Denizen
-	@server
 	@param direction Vector3?
 ]=]
 function Denizen:FaceDirection(direction: Vector3?)
@@ -281,7 +276,6 @@ end
 --[=[
 	Stops the denizen from walking toward its `MoveTarget`. Does not change facing.
 	@within Denizen
-	@server
 ]=]
 function Denizen:StopMoving()
 	self.MoveTarget = nil
@@ -338,7 +332,6 @@ end
 --[=[
 	Implements `DamageTarget`. Returns the denizen's current health.
 	@within Denizen
-	@server
 	@return number
 ]=]
 function Denizen:GetHealth(): number
@@ -348,7 +341,6 @@ end
 --[=[
 	Implements `DamageTarget`. Sets authoritative health, clamped to `[0, MaxHealth]`.
 	@within Denizen
-	@server
 	@param value number
 ]=]
 function Denizen:SetHealth(value: number)
@@ -360,7 +352,6 @@ end
 	`Source` as `LastAttacker` so the behavior layer can react. Returns the unchanged
 	`Damage` record (we don't transform here).
 	@within Denizen
-	@server
 	@param damage Damage
 	@return Damage
 ]=]
@@ -374,7 +365,6 @@ end
 	Returns the denizen's `Animator`, lazily resolving it from the `AnimationController`
 	on first access and caching the result.
 	@within Denizen
-	@server
 	@return Animator
 ]=]
 function Denizen:GetAnimator(): Animator
@@ -404,7 +394,6 @@ end
 	Plays the animation identified by `kind`, loading it on first use. Extra arguments are
 	forwarded to `AnimationTrack:Play` (e.g. `fadeTime`, `weight`, `speed`).
 	@within Denizen
-	@server
 	@param kind string
 ]=]
 function Denizen:AnimationPlay(kind: string, ...: any)
@@ -415,7 +404,6 @@ end
 	Stops the animation identified by `kind`. Returns silently if the track was never
 	loaded. Extra arguments are forwarded to `AnimationTrack:Stop`.
 	@within Denizen
-	@server
 	@param kind string
 ]=]
 function Denizen:AnimationStop(kind: string, ...: any)
@@ -429,7 +417,6 @@ end
 --[=[
 	Hard-stops every cached animation track. Used to forcibly clear all animation state.
 	@within Denizen
-	@server
 ]=]
 function Denizen:AnimationStopHardAll()
 	for _, track in self.AnimationTracks do
@@ -441,7 +428,6 @@ end
 --[=[
 	Returns whether the track for `kind` is currently loaded and playing.
 	@within Denizen
-	@server
 	@param kind string
 	@return boolean
 ]=]

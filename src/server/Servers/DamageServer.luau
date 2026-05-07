@@ -2,7 +2,6 @@
 
 --[=[
 	@class DamageServer
-	@server
 	Centralized damage pipeline. Every damage event in the game flows through
 	`DamageServer.Damage`, which threads the immutable `Damage` record through the
 	source-side and target-side `OnWill*Damage` hooks, applies the resulting amount to the
@@ -35,7 +34,6 @@ local EMPTY_TAGS = table.freeze({}) :: { [string]: true }
 --[=[
 	Runs `damage` through the full pipeline and applies the resulting amount to the target.
 	@within DamageServer
-	@server
 	@param damage Damage
 ]=]
 function DamageServer.Damage(damage: Damage)

@@ -9,7 +9,9 @@ return function(promiseFunc, default, deps)
 
 	React.useEffect(function()
 		local promise = func()
-		if not promise then return end
+		if not promise then
+			return
+		end
 
 		promise:andThen(setValue)
 

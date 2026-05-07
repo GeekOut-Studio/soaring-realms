@@ -2,7 +2,6 @@
 
 --[=[
 	@class CombatServer
-	@server
 	Owns every active `CombatSession` on the server. Routes engagements, refreshes
 	per-combatant `CombatTimer`s, and ends sessions when no opposed alive pair remains or
 	when every member's timer has expired.
@@ -100,7 +99,6 @@ end
 	Refreshes `combatant`'s CombatTimer in its current session. No-op if the combatant
 	isn't in a session.
 	@within CombatServer
-	@server
 	@param combatant Combatant
 	@param now number
 	@private
@@ -122,7 +120,6 @@ end
 	No-op when either party isn't a combatant, when they aren't hostile, or when
 	`a == b`.
 	@within CombatServer
-	@server
 	@param a any
 	@param b any
 ]=]
@@ -170,7 +167,6 @@ end
 	ends it if no opposed alive pair remains. Called by combatant `Stop()` handlers and by
 	states like `Returning` that voluntarily drop out of combat.
 	@within CombatServer
-	@server
 	@param combatant any
 ]=]
 function CombatServer.Disengage(combatant: any)
@@ -195,7 +191,6 @@ end
 	refreshes both timers. Allied damage and damage with no source are ignored — the rule
 	is "if it wouldn't start a fight, it doesn't continue one."
 	@within CombatServer
-	@server
 	@param damage Damage
 ]=]
 function CombatServer.OnDamageEvent(damage: Damage)
@@ -240,7 +235,6 @@ end
 --[=[
 	Wires the heartbeat-driven tick. Idempotent. Called once from `ServerInitializer`.
 	@within CombatServer
-	@server
 ]=]
 function CombatServer.Init()
 	if started then

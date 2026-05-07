@@ -185,7 +185,6 @@ end
 --[=[
 	Returns the team identifier for this combatant. Implements the `Combatant` interface.
 	@within Outworlder
-	@server
 	@return string?
 ]=]
 function Outworlder:GetTeam(): string?
@@ -196,7 +195,6 @@ end
 	Returns the character's pivot CFrame (position + facing). Implements the `Combatant`
 	interface for combat-system range and direction checks.
 	@within Outworlder
-	@server
 	@return CFrame
 ]=]
 function Outworlder:GetCFrame(): CFrame
@@ -221,7 +219,6 @@ end
 	there is no action, or the action exposes neither `CompletionTimestamp` nor
 	`Alpha`. Called every Heartbeat after the action's `Update` runs.
 	@within Outworlder
-	@server
 ]=]
 function Outworlder:ReplicateActionProgress()
 	local action = self.CurrentAction
@@ -299,7 +296,6 @@ end
 	check). Future client UI subscribes to the `ActionFailed` Comm signal to
 	render a transient toast.
 	@within Outworlder
-	@server
 	@param message string
 ]=]
 function Outworlder:NotifyActionFailed(message: string)
@@ -350,7 +346,6 @@ end
 	Returns the character's `Animator`, lazily resolving it from the Humanoid on
 	first access and caching the result.
 	@within Outworlder
-	@server
 	@return Animator
 ]=]
 function Outworlder:GetAnimator(): Animator
@@ -379,7 +374,6 @@ end
 	arguments are forwarded to `AnimationTrack:Play` (e.g. `fadeTime`, `weight`,
 	`speed`).
 	@within Outworlder
-	@server
 	@param kind string
 ]=]
 function Outworlder:AnimationPlay(kind: string, ...: any)
@@ -393,7 +387,6 @@ end
 	loading on first use) or `duration` is non-positive, falls back to native
 	speed. Subsequent calls after the first will use the correct speed.
 	@within Outworlder
-	@server
 	@param kind string
 	@param duration number
 ]=]
@@ -408,7 +401,6 @@ end
 	never loaded — stopping an animation we are definitely not playing is a
 	no-op. Extra arguments are forwarded to `AnimationTrack:Stop` (`fadeTime`).
 	@within Outworlder
-	@server
 	@param kind string
 ]=]
 function Outworlder:AnimationStop(kind: string, ...: any)
@@ -423,7 +415,6 @@ end
 	Stops the animation identified by `kind` immediately by zeroing its weight
 	before stopping with no fade. Returns silently if the track was never loaded.
 	@within Outworlder
-	@server
 	@param kind string
 ]=]
 function Outworlder:AnimationStopHard(kind: string)
@@ -439,7 +430,6 @@ end
 	Hard-stops every cached animation track. Used to forcibly clear all
 	animation state (e.g. on action interrupt).
 	@within Outworlder
-	@server
 ]=]
 function Outworlder:AnimationStopHardAll()
 	for _, track in self.AnimationTracks do
@@ -453,7 +443,6 @@ end
 	`false` if the track was never loaded — consistent with the cache-or-nothing
 	semantics of the rest of the animation API.
 	@within Outworlder
-	@server
 	@param kind string
 	@return boolean
 ]=]
@@ -468,7 +457,6 @@ end
 	idle track; multiple equipped items layer naturally via `AnimationPriority`.
 	Newly added kinds are played, removed kinds are stopped.
 	@within Outworlder
-	@server
 	@param equipment Equipment
 ]=]
 function Outworlder:UpdateEquipmentIdleAnimations(equipment: Equipment)
@@ -587,7 +575,6 @@ end
 --[=[
 	Returns the character's authoritative current health. Implements `DamageTarget`.
 	@within Outworlder
-	@server
 	@return number
 ]=]
 function Outworlder:GetHealth(): number
@@ -600,7 +587,6 @@ end
 	damage hit feels instant on the HUD). On reaching zero, kills the character via the
 	Humanoid so the default respawn pipeline takes over. Implements `DamageTarget`.
 	@within Outworlder
-	@server
 	@param value number
 ]=]
 function Outworlder:SetHealth(value: number)

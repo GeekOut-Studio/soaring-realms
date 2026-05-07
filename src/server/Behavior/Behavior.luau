@@ -2,7 +2,6 @@
 
 --[=[
 	@class Behavior
-	@server
 	Per-denizen FSM runner. Constructed from a `BehaviorDef` (states + transitions, both
 	referenced by string `Kind` in the def and resolved here to the implementations in
 	`States/` and `Predicates/`).
@@ -93,7 +92,6 @@ Behavior.__index = Behavior
 	Constructs a behavior bound to `denizen`, instantiates all states up-front, and enters
 	`behaviorDef.Initial`.
 	@within Behavior
-	@server
 	@param denizen any
 	@param behaviorDef BehaviorDef
 	@return Behavior
@@ -120,7 +118,6 @@ end
 --[=[
 	Advance one frame: check transitions, then tick the current state.
 	@within Behavior
-	@server
 	@param dt number
 ]=]
 function Behavior:Tick(dt: number)
@@ -147,7 +144,6 @@ end
 	Switches the active state, calling `Exit` on the outgoing state and `Enter` on the
 	incoming. No-op when `nextName` already matches the current state.
 	@within Behavior
-	@server
 	@param nextName string
 ]=]
 function Behavior:TransitionTo(nextName: string)

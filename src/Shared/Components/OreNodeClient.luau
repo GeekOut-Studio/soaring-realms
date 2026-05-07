@@ -2,7 +2,6 @@
 
 --[=[
 	@class OreNodeClient
-	@client
 	Client-side companion to the server `OreNode` component. Subscribes to its Comm
 	(`State`, `Break`, `Hit`) and tracks which entries the *local player* has
 	recently mined. Each active entry registers a `Billboards` entry with an

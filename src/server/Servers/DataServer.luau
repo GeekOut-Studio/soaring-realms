@@ -122,7 +122,6 @@ end
 	`Loaded` event. The optional cleanup function returned by `callback` runs when
 	the player leaves or the observer is disconnected.
 	@within DataServer
-	@server
 	@param callback (player: Player, data: PlayerData) -> (() -> ())?
 	@return () -> () -- Disconnects the observer.
 ]=]

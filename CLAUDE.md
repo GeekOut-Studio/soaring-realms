@@ -22,4 +22,4 @@
   - `@type <Name> <type>` — type aliases only (union types, dictionary types, primitive aliases). Do NOT use for named-field tables; use `@interface` instead.
   - `@param <name> <type>` / `@return <type>` — function parameters and return values.
   - `@yields` — mark functions that yield.
-  - `@server` / `@client` — when a function is realm-restricted.
+  - Don't use `@server` / `@client`. The realm is unambiguous from the file's location in the source tree, so the tag adds noise without information.

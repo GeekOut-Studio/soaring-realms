@@ -1,7 +1,6 @@
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
-local Cmdr = require(ReplicatedStorage.Packages.Cmdr)
+local Cmdr = require(ServerScriptService.ServerPackages.Cmdr)
 local CombatServer = require(ServerScriptService.Server.Servers.CombatServer)
 local DataServer = require(ServerScriptService.Server.Servers.DataServer)
 local DownloadServer = require(ServerScriptService.Server.Servers.DownloadServer)

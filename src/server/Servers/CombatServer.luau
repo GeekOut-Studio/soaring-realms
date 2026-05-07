@@ -47,11 +47,6 @@ local function isCombatant(x: any): boolean
 		and type(x.GetHealth) == "function"
 end
 
-local function isHostile(a: Combatant, b: Combatant): boolean
-	local ta, tb = a:GetTeam(), b:GetTeam()
-	return ta == nil or tb == nil or ta ~= tb
-end
-
 local function newSession(): CombatSession
 	local session: CombatSession = { Members = {} }
 	sessions[session] = true
@@ -75,7 +70,7 @@ local function hasOpposedAlivePair(session: CombatSession): boolean
 	end
 	for i = 1, #alive do
 		for j = i + 1, #alive do
-			if isHostile(alive[i], alive[j]) then
+			if CombatTypes.IsHostile(alive[i], alive[j]) then
 				return true
 			end
 		end
@@ -131,7 +126,7 @@ function CombatServer.Engage(a: any, b: any)
 		return
 	end
 	local ca, cb = a :: Combatant, b :: Combatant
-	if not isHostile(ca, cb) then
+	if not CombatTypes.IsHostile(ca, cb) then
 		return
 	end
 
@@ -203,7 +198,7 @@ function CombatServer.OnDamageEvent(damage: Damage)
 	end
 	local cs = (source :: any) :: Combatant
 	local ct = (damage.Target :: any) :: Combatant
-	if not isHostile(cs, ct) then
+	if not CombatTypes.IsHostile(cs, ct) then
 		return
 	end
 	CombatServer.Engage(cs, ct)

@@ -37,6 +37,16 @@ local Defs = {
 		Name = "Copper Sword",
 		EquipSlots = { "MainHandMelee" },
 		AssetPath = "Base/Weapons/SwordCopper",
+		IdleAnimation = "WeaponOneHandedIdle",
+		Stats = {
+			Combat = {
+				Interval = 1,
+				Power = { Min = 6, Max = 9 },
+				Range = 8,
+				DamageKind = "Slashing",
+				AttackAnimation = "WeaponOneHandedHorizontalSwing",
+			},
+		},
 	},
 	PickaxeCopper = {
 		Name = "Copper Pickaxe",

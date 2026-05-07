@@ -23,6 +23,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 local DamageServer = require(ServerScriptService.Server.Servers.DamageServer)
+local CombatTypes = require(ReplicatedStorage.Shared.Types.CombatTypes)
 local DamageTypes = require(ReplicatedStorage.Shared.Types.DamageTypes)
 
 type DamageKind = DamageTypes.DamageKind
@@ -51,11 +52,6 @@ export type Config = {
 	OnLeashed: string,
 }
 
-local function isHostile(a: any, b: any): boolean
-	local ta, tb = a:GetTeam(), b:GetTeam()
-	return ta == nil or tb == nil or ta ~= tb
-end
-
 local function pickTarget(denizen: any): any?
 	local session = denizen.CombatSession
 	if session == nil then
@@ -71,7 +67,7 @@ local function pickTarget(denizen: any): any?
 		if member:GetHealth() <= 0 then
 			continue
 		end
-		if not isHostile(denizen, member) then
+		if not CombatTypes.IsHostile(denizen, member) then
 			continue
 		end
 		local distSq = (member:GetCFrame().Position - pos).Magnitude ^ 2

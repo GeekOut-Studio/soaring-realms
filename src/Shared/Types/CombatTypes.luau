@@ -33,4 +33,20 @@ export type CombatSession = {
 	Members: { [Combatant]: number },
 }
 
-return {}
+local CombatTypes = {}
+
+--[=[
+	Returns whether two combatants are considered hostile to each other. The rule:
+	if either combatant's team is `nil` (hostile to all), or their teams differ,
+	they are hostile. Same-team combatants are never hostile.
+	@within CombatTypes
+	@param a Combatant
+	@param b Combatant
+	@return boolean
+]=]
+function CombatTypes.IsHostile(a: Combatant, b: Combatant): boolean
+	local ta, tb = a:GetTeam(), b:GetTeam()
+	return ta == nil or tb == nil or ta ~= tb
+end
+
+return CombatTypes

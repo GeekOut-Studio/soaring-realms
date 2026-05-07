@@ -18,6 +18,7 @@ local Trove = require(ReplicatedStorage.Packages.Trove)
 local t = require(ReplicatedStorage.Packages.t)
 
 local CombatServer = require(ServerScriptService.Server.Servers.CombatServer)
+local DamageServer = require(ServerScriptService.Server.Servers.DamageServer)
 local EquipmentServer = require(ServerScriptService.Server.Servers.EquipmentServer)
 local ActionTypes = require(ReplicatedStorage.Shared.Types.ActionTypes)
 local AnimationDefs = require(ReplicatedStorage.Shared.Defs.AnimationDefs)
@@ -25,6 +26,7 @@ local CombatTypes = require(ReplicatedStorage.Shared.Types.CombatTypes)
 local EquipmentTypes = require(ReplicatedStorage.Shared.Types.EquipmentTypes)
 local HealthTypes = require(ReplicatedStorage.Shared.Types.HealthTypes)
 local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
+local ItemStatsTypes = require(ReplicatedStorage.Shared.Types.ItemStatsTypes)
 local MovementTypes = require(ReplicatedStorage.Shared.Types.MovementTypes)
 local OutworlderShared = require(ReplicatedStorage.Shared.Components.OutworlderShared)
 
@@ -34,6 +36,7 @@ type Action = ActionTypes.Action
 type StopReason = ActionTypes.StopReason
 type MovementMode = MovementTypes.MovementMode
 type Equipment = EquipmentTypes.Equipment
+type CombatStats = ItemStatsTypes.CombatStats
 
 local WAIT_FOR_CHILD_TIMEOUT = 10
 
@@ -131,6 +134,7 @@ function Outworlder:Construct()
 	self.ActionFailedSignal = self.Comm:CreateSignal("ActionFailed")
 
 	self.CombatSession = nil :: CombatSession?
+	self.CombatSwingTimer = 0
 
 	self.MovementMode = MovementTypes.DefaultMode :: MovementMode
 	self.Stamina = self.MaxStamina
@@ -570,6 +574,111 @@ function Outworlder:HeartbeatUpdate(dt: number)
 	if inCombat ~= self.InCombatProperty:Get() then
 		self.InCombatProperty:Set(inCombat)
 	end
+
+	self:TickCombatSwing(dt)
+end
+
+--[=[
+	Placeholder auto-attack: while in combat with an equipped weapon, picks a random
+	hostile alive in-range combatant from the active session and hits it for the
+	weapon's `Combat.Power` every `Combat.Interval` seconds. Plays the weapon's
+	`AttackAnimation` on each swing. Resets the swing timer when out of combat or
+	when no weapon is equipped, so the next engagement starts on a fresh swing rather
+	than firing immediately.
+	@within Outworlder
+	@param dt number
+]=]
+function Outworlder:TickCombatSwing(dt: number)
+	local session = self.CombatSession
+	if session == nil then
+		self.CombatSwingTimer = 0
+		return
+	end
+
+	local weaponStats = self:GetEquippedCombatStats()
+	if weaponStats == nil then
+		self.CombatSwingTimer = 0
+		return
+	end
+
+	self.CombatSwingTimer -= dt
+	if self.CombatSwingTimer > 0 then
+		return
+	end
+
+	local target = self:PickRandomCombatTarget(session, weaponStats.Range)
+	if target == nil then
+		-- Hold the trigger; we'll swing the moment a target is in range again.
+		self.CombatSwingTimer = 0
+		return
+	end
+
+	self.CombatSwingTimer = weaponStats.Interval
+	if weaponStats.AttackAnimation ~= nil then
+		self:AnimationPlay(weaponStats.AttackAnimation)
+	end
+	local power = weaponStats.Power
+	local amount = power.Min + math.random() * (power.Max - power.Min)
+	DamageServer.Damage({
+		Amount = amount,
+		Kind = weaponStats.DamageKind,
+		Source = self,
+		Target = target,
+	})
+end
+
+--[=[
+	Returns the `CombatStats` of the first equipped item with a `Combat` stat block,
+	or `nil` if no equipped item has combat stats.
+	@within Outworlder
+	@return CombatStats?
+]=]
+function Outworlder:GetEquippedCombatStats(): CombatStats?
+	for _, item in self.EquipmentProperty:Get() do
+		local def = ItemDefs[item.Kind]
+		if def == nil then
+			continue
+		end
+		if def.Stats == nil or def.Stats.Combat == nil then
+			continue
+		end
+		return def.Stats.Combat
+	end
+	return nil
+end
+
+--[=[
+	Picks a random hostile alive `Combatant` from `session.Members` whose distance from
+	the character is at most `range` studs. Returns `nil` if no candidate exists.
+	@within Outworlder
+	@param session CombatSession
+	@param range number
+	@return Combatant?
+]=]
+function Outworlder:PickRandomCombatTarget(session: CombatSession, range: number)
+	local pos = self.Instance:GetPivot().Position
+	local rangeSq = range * range
+	local candidates = {}
+	for member in session.Members do
+		if member == self then
+			continue
+		end
+		if member:GetHealth() <= 0 then
+			continue
+		end
+		if not CombatTypes.IsHostile(self, member) then
+			continue
+		end
+		local distSq = (member:GetCFrame().Position - pos).Magnitude ^ 2
+		if distSq > rangeSq then
+			continue
+		end
+		table.insert(candidates, member)
+	end
+	if #candidates == 0 then
+		return nil
+	end
+	return candidates[math.random(1, #candidates)]
 end
 
 --[=[

@@ -37,6 +37,7 @@ local t = require(ReplicatedStorage.Packages.t)
 
 local Behavior = require(ServerScriptService.Server.Behavior.Behavior)
 local CombatServer = require(ServerScriptService.Server.Servers.CombatServer)
+local InventoryServer = require(ServerScriptService.Server.Servers.InventoryServer)
 local AnimationDefs = require(ReplicatedStorage.Shared.Defs.AnimationDefs)
 local CombatTypes = require(ReplicatedStorage.Shared.Types.CombatTypes)
 local DamageTypes = require(ReplicatedStorage.Shared.Types.DamageTypes)
@@ -54,6 +55,13 @@ local GROUND_SENSOR_BUFFER = 5
 -- Out-of-combat regen rate, expressed as a fraction of MaxHealth per second. Denizens
 -- only regenerate while CombatSession is nil; in-combat regen is intentionally zero.
 local OUT_OF_COMBAT_REGEN_FRACTION = 0.25
+-- Coin drop range awarded on death to each player who was in combat with the denizen.
+-- Inclusive on both ends. Will move to the def when per-kind drops matter.
+local COIN_DROP_MIN = 5
+local COIN_DROP_MAX = 15
+-- Seconds after death before a fresh clone of the spawn-time model is parented back into
+-- the workspace.
+local RESPAWN_DELAY = 5
 
 local Denizen = Component.new({
 	Tag = "Denizen",
@@ -175,6 +183,12 @@ function Denizen:Construct()
 	self.Target = nil :: any?
 	self.Behavior = nil :: any?
 	self.CombatSession = nil :: CombatSession?
+	self.IsDead = false
+
+	-- Clone before any runtime modifications (controller manager, network owner, etc.)
+	-- so the template captures the model's pristine spawn state. Lives parented to nil
+	-- until Die schedules its respawn.
+	self.Template = self.Instance:Clone()
 
 	self:SetUpController()
 
@@ -340,11 +354,54 @@ end
 
 --[=[
 	Implements `DamageTarget`. Sets authoritative health, clamped to `[0, MaxHealth]`.
+	Triggers `Die` once on the transition to zero; subsequent calls at zero are no-ops.
 	@within Denizen
 	@param value number
 ]=]
 function Denizen:SetHealth(value: number)
 	self.Health = math.clamp(value, 0, self.MaxHealth)
+	if self.Health <= 0 and not self.IsDead then
+		self:Die()
+	end
+end
+
+--[=[
+	Kills the denizen: pays out coins to every player that was in a combat session with
+	it, then destroys the model. The model's destruction triggers the component's `Stop`,
+	which in turn `Disengage`s any remaining combat session reference.
+
+	Idempotent — guarded by `IsDead` so a flurry of damage hits in one frame can't
+	double-pay the loot.
+	@within Denizen
+]=]
+function Denizen:Die()
+	self.IsDead = true
+
+	-- Snapshot rewarded players before disengaging — `Disengage` (run from `Stop`) ends
+	-- the session and clears `Members`, so we'd see an empty list afterwards.
+	local rewardedPlayers: { Player } = {}
+	local session = self.CombatSession
+	if session ~= nil then
+		for member in session.Members do
+			if member.Player ~= nil then
+				table.insert(rewardedPlayers, member.Player)
+			end
+		end
+	end
+
+	for _, player in rewardedPlayers do
+		local count = math.random(COIN_DROP_MIN, COIN_DROP_MAX)
+		InventoryServer.AddItem(player, "Coin", count)
+	end
+
+	-- Capture the template before destroying ourselves; the closure keeps it alive
+	-- across the respawn delay even though `self` is gone.
+	local template = self.Template
+	self.Instance:Destroy()
+	task.delay(RESPAWN_DELAY, function()
+		local clone = template:Clone()
+		clone.Parent = Workspace
+	end)
 end
 
 --[=[

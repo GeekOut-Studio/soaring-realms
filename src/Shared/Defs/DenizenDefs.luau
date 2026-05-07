@@ -94,19 +94,12 @@ local Defs = {
 					OnTargetLost = "Idle",
 					OnLeashed = "Returning",
 				},
-				Fleeing = {
-					Kind = "Flee",
-					Speed = 1.5,
-					Distance = 30,
-				},
 				Returning = {
 					Kind = "ReturnToSpawn",
 					OnArrive = "Idle",
 				},
 			},
 			Transitions = {
-				-- Low health overrides everything else.
-				{ When = { Kind = "HealthBelow", Fraction = 0.25 } :: any, Goto = "Fleeing" },
 				-- From idle wander, engage anything in sight.
 				{ From = "Idle", When = { Kind = "EnemyInRange", Range = 20 } :: any, Goto = "Aggressing" },
 				-- After healing up while fleeing, go back to wandering.

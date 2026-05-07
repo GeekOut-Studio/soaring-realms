@@ -38,8 +38,12 @@ InventoryTypes.Size = 30
 --[=[
 	@prop DefaultInventory Inventory
 	@within InventoryTypes
-	Empty inventory used as the starting state for new players.
+	Starting inventory for new players: one Copper Sword and one Copper Pickaxe so they
+	can engage in combat and mining out of the gate.
 ]=]
-InventoryTypes.DefaultInventory = table.freeze({} :: Inventory)
+InventoryTypes.DefaultInventory = table.freeze({
+	["1"] = table.freeze({ Kind = "SwordCopper" }),
+	["2"] = table.freeze({ Kind = "PickaxeCopper" }),
+} :: Inventory)
 
 return InventoryTypes

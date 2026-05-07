@@ -9,6 +9,10 @@
 	`Stats.Mining` is non-nil.
 ]=]
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local DamageTypes = require(ReplicatedStorage.Shared.Types.DamageTypes)
+
 --[=[
 	@interface PowerRange
 	@within ItemStatsTypes
@@ -32,12 +36,31 @@ export type MiningStats = {
 }
 
 --[=[
+	@interface CombatStats
+	@within ItemStatsTypes
+	@field Interval number -- Seconds between successive attacks.
+	@field Power PowerRange -- Per-swing damage range. One value is rolled per swing and applied to the target.
+	@field Range number -- Stud distance within which a target is considered in reach.
+	@field DamageKind DamageKind -- Damage kind tag passed through `DamageServer`.
+	@field AttackAnimation string? -- `AnimationDefs` key played by the wielder on each swing.
+]=]
+export type CombatStats = {
+	Interval: number,
+	Power: PowerRange,
+	Range: number,
+	DamageKind: DamageTypes.DamageKind,
+	AttackAnimation: string?,
+}
+
+--[=[
 	@interface Stats
 	@within ItemStatsTypes
 	@field Mining MiningStats? -- Present on mining tools (pickaxes).
+	@field Combat CombatStats? -- Present on weapons.
 ]=]
 export type Stats = {
 	Mining: MiningStats?,
+	Combat: CombatStats?,
 }
 
 return {}

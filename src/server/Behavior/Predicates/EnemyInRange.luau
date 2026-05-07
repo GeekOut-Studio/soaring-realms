@@ -2,16 +2,17 @@
 
 --[=[
 	@class EnemyInRange
-	Predicate: returns `true` when an `Outworlder` is within `args.Range` studs of the
-	denizen, and stashes the closest one on `denizen.Target` as a side effect so the
-	subsequent transition's destination state can use it.
+	Predicate: scans live `Outworlder`s within `args.Range` studs of the denizen and, on a
+	hit, calls `CombatServer.Engage(denizen, target)` so both end up in a session. Returns
+	`true` exactly when an engagement happened (i.e., a hostile player was found in range).
 
-	The side effect is intentional but worth knowing about: see "Predicate side effects" in
-	`DenizenBehaviorPlan.md` (commit history) for the rationale.
+	The side effect is the engagement itself, not stashing a target — `MeleeAggression`
+	pulls its target from the denizen's session, not from a predicate-stashed field.
 ]=]
 
 local ServerScriptService = game:GetService("ServerScriptService")
 
+local CombatServer = require(ServerScriptService.Server.Servers.CombatServer)
 local Outworlder = require(ServerScriptService.Server.Components.Outworlder)
 
 --[=[
@@ -31,7 +32,7 @@ return function(denizen: any, args: Args): boolean
 	local closest = nil
 	local closestDistSq = math.huge
 	for _, outworlder in Outworlder:GetAll() do
-		if outworlder.Health <= 0 then
+		if outworlder:GetHealth() <= 0 then
 			continue
 		end
 		local distSq = (outworlder.Instance:GetPivot().Position - pos).Magnitude ^ 2
@@ -44,6 +45,6 @@ return function(denizen: any, args: Args): boolean
 	if closest == nil then
 		return false
 	end
-	denizen.Target = closest
+	CombatServer.Engage(denizen, closest)
 	return true
 end

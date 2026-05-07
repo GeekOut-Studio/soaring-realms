@@ -21,7 +21,9 @@
 ]=]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 
+local CombatServer = require(ServerScriptService.Server.Servers.CombatServer)
 local DamageTypes = require(ReplicatedStorage.Shared.Types.DamageTypes)
 
 type Damage = DamageTypes.Damage
@@ -69,6 +71,8 @@ function DamageServer.Damage(damage: Damage)
 	if onDidTake ~= nil then
 		current = onDidTake(current.Target, current)
 	end
+
+	CombatServer.OnDamageEvent(current)
 end
 
 return DamageServer

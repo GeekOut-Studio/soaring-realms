@@ -31,6 +31,7 @@ export type Animations = {
 	@field MaxHealth number
 	@field MoveSpeed number -- Studs/second. Seeds `ControllerManager.BaseMoveSpeed`.
 	@field Animations Animations
+	@field Team string? -- Combat team identifier. `nil` means hostile to everyone. Two teams currently exist: `"Players"` and `"Enemies"`.
 	@field Behavior BehaviorDef? -- Optional FSM definition consumed by the server-side `Behavior` runner. Omit for static denizens.
 ]=]
 export type DenizenDef = {
@@ -39,6 +40,7 @@ export type DenizenDef = {
 	MaxHealth: number,
 	MoveSpeed: number,
 	Animations: Animations,
+	Team: string?,
 	Behavior: BehaviorDef?,
 }
 
@@ -72,6 +74,7 @@ local Defs = {
 			Idle = "ImpIdle",
 			Run = "ImpRun",
 		},
+		Team = "Enemies",
 		Behavior = {
 			Initial = "Idle",
 			States = {

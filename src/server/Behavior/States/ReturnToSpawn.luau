@@ -2,9 +2,14 @@
 
 --[=[
 	@class ReturnToSpawn
-	State factory that walks the denizen back to its `SpawnPosition` and returns `"Idle"`
-	when it arrives within `ArrivalRadius` studs.
+	State factory that walks the denizen back to its `SpawnPosition` and transitions to
+	`OnArrive` when it arrives within `ArrivalRadius` studs. Entering this state calls
+	`CombatServer.Disengage(denizen)` — going home means giving up the fight.
 ]=]
+
+local ServerScriptService = game:GetService("ServerScriptService")
+
+local CombatServer = require(ServerScriptService.Server.Servers.CombatServer)
 
 --[=[
 	@interface Config
@@ -23,6 +28,7 @@ return function(config: Config)
 
 	return {
 		Enter = function(denizen: any)
+			CombatServer.Disengage(denizen)
 			denizen.Target = nil
 			denizen:MoveTo(denizen.SpawnPosition)
 		end,

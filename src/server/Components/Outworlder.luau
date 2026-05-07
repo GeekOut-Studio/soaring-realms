@@ -17,14 +17,18 @@ local Component = require(ReplicatedStorage.Packages.Component)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local t = require(ReplicatedStorage.Packages.t)
 
+local CombatServer = require(ServerScriptService.Server.Servers.CombatServer)
 local EquipmentServer = require(ServerScriptService.Server.Servers.EquipmentServer)
 local ActionTypes = require(ReplicatedStorage.Shared.Types.ActionTypes)
 local AnimationDefs = require(ReplicatedStorage.Shared.Defs.AnimationDefs)
+local CombatTypes = require(ReplicatedStorage.Shared.Types.CombatTypes)
 local EquipmentTypes = require(ReplicatedStorage.Shared.Types.EquipmentTypes)
 local HealthTypes = require(ReplicatedStorage.Shared.Types.HealthTypes)
 local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
 local MovementTypes = require(ReplicatedStorage.Shared.Types.MovementTypes)
 local OutworlderShared = require(ReplicatedStorage.Shared.Components.OutworlderShared)
+
+type CombatSession = CombatTypes.CombatSession
 
 type Action = ActionTypes.Action
 type StopReason = ActionTypes.StopReason
@@ -94,6 +98,13 @@ local Outworlder = Component.new({
 	every equipment change to start newly added idles and stop removed ones.
 ]=]
 
+--[=[
+	@prop CombatSession CombatSession?
+	@within Outworlder
+	Back-reference written by `CombatServer`. Non-nil exactly when the character is in
+	combat. Polled each heartbeat to drive the replicated `InCombat` flag.
+]=]
+
 function Outworlder:Construct()
 	self.CurrentAction = nil :: Action?
 	self.Trove = Trove.new()
@@ -115,8 +126,11 @@ function Outworlder:Construct()
 	self.MaxHealth = HealthTypes.DefaultMaxHealth
 	self.MaxHealthProperty = self.Comm:CreateProperty("MaxHealth", self.MaxHealth)
 	self.HealthProperty = self.Comm:CreateProperty("Health", self.MaxHealth)
+	self.InCombatProperty = self.Comm:CreateProperty("InCombat", false)
 	self.ActionProgressProperty = self.Comm:CreateProperty("ActionProgress", nil)
 	self.ActionFailedSignal = self.Comm:CreateSignal("ActionFailed")
+
+	self.CombatSession = nil :: CombatSession?
 
 	self.MovementMode = MovementTypes.DefaultMode :: MovementMode
 	self.Stamina = self.MaxStamina
@@ -163,8 +177,30 @@ function Outworlder:Stop()
 		self.CurrentAction:Stop("Interrupted")
 		self.CurrentAction = nil
 	end
+	CombatServer.Disengage(self)
 	self:AnimationStopHardAll()
 	self.Trove:Destroy()
+end
+
+--[=[
+	Returns the team identifier for this combatant. Implements the `Combatant` interface.
+	@within Outworlder
+	@server
+	@return string?
+]=]
+function Outworlder:GetTeam(): string?
+	return "Players"
+end
+
+--[=[
+	Returns the character's pivot CFrame (position + facing). Implements the `Combatant`
+	interface for combat-system range and direction checks.
+	@within Outworlder
+	@server
+	@return CFrame
+]=]
+function Outworlder:GetCFrame(): CFrame
+	return self.Instance:GetPivot()
 end
 
 --[=[
@@ -540,6 +576,11 @@ function Outworlder:HeartbeatUpdate(dt: number)
 	if self.HealthSendAccumulator >= HealthTypes.HealthReplicationInterval then
 		self.HealthSendAccumulator = 0
 		self.HealthProperty:SetFor(self.Player, self.Health)
+	end
+
+	local inCombat = self.CombatSession ~= nil
+	if inCombat ~= self.InCombatProperty:Get() then
+		self.InCombatProperty:Set(inCombat)
 	end
 end
 

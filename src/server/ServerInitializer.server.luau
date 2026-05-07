@@ -2,6 +2,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 local Cmdr = require(ReplicatedStorage.Packages.Cmdr)
+local CombatServer = require(ServerScriptService.Server.Servers.CombatServer)
 local DataServer = require(ServerScriptService.Server.Servers.DataServer)
 local DownloadServer = require(ServerScriptService.Server.Servers.DownloadServer)
 local EquipmentServer = require(ServerScriptService.Server.Servers.EquipmentServer)
@@ -17,6 +18,7 @@ TeleportServer.Init()
 InventoryServer.Init()
 EquipmentServer.Init()
 SkillServer.Init()
+CombatServer.Init()
 
 for _, component in ServerScriptService.Server.Components:GetChildren() do
 	require(component)

@@ -2,13 +2,21 @@
 
 --[=[
 	@class MeleeAggression
-	State factory for melee combat. Closes to `AttackRange` of `denizen.Target`, faces it,
-	and applies `AttackDamage` of `AttackKind` damage every `AttackCooldown` seconds via
-	`DamageServer`. Returns `"Idle"` when the target is gone or dead, `"Returning"` if the
-	target leaves `LeashRange`.
+	State factory for melee combat. Pulls its target from the denizen's `CombatSession`
+	(closest hostile alive member, picked sticky — re-evaluated only when the current target
+	dies, leaves the session, or the session ends). Closes to `AttackRange`, faces the
+	target, and applies `AttackDamage` of `AttackKind` damage every `AttackCooldown` seconds
+	via `DamageServer`.
 
-	The damage is applied directly here (rather than through an Abilities system) until that
-	system lands; see the plan's "Cooldown bookkeeping for abilities" open decision.
+	Returns:
+	- `OnTargetLost` when no hostile alive members remain in the session (or the session is gone).
+	- `OnLeashed` when the current target's distance from `SpawnPosition` exceeds `LeashRange`.
+
+	Damage is dealt directly here rather than via an Abilities system; revisit when that
+	system lands.
+
+	Writes `denizen.Target` as a projection of the currently-focused combatant for external
+	reads (UI, debugging). Cleared in `Exit`.
 ]=]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -28,8 +36,8 @@ type DamageKind = DamageTypes.DamageKind
 	@field AttackDamage number
 	@field AttackKind DamageKind
 	@field AttackAnimation string? -- Optional `AnimationDefs` key played on each swing.
-	@field OnTargetLost string -- State to transition to when the target is gone or dead.
-	@field OnLeashed string -- State to transition to when the target leaves `LeashRange` from spawn.
+	@field OnTargetLost string -- State to transition to when no hostile alive members remain.
+	@field OnLeashed string -- State to transition to when the current target leaves `LeashRange` from spawn.
 ]=]
 export type Config = {
 	Kind: string,
@@ -43,29 +51,74 @@ export type Config = {
 	OnLeashed: string,
 }
 
-local function isDead(target: any): boolean
-	if target.GetHealth == nil then
-		return true
+local function isHostile(a: any, b: any): boolean
+	local ta, tb = a:GetTeam(), b:GetTeam()
+	return ta == nil or tb == nil or ta ~= tb
+end
+
+local function pickTarget(denizen: any): any?
+	local session = denizen.CombatSession
+	if session == nil then
+		return nil
 	end
-	return target:GetHealth() <= 0
+	local pos = denizen.Instance:GetPivot().Position
+	local closest = nil
+	local closestDistSq = math.huge
+	for member in session.Members do
+		if member == denizen then
+			continue
+		end
+		if member:GetHealth() <= 0 then
+			continue
+		end
+		if not isHostile(denizen, member) then
+			continue
+		end
+		local distSq = (member:GetCFrame().Position - pos).Magnitude ^ 2
+		if distSq < closestDistSq then
+			closest = member
+			closestDistSq = distSq
+		end
+	end
+	return closest
+end
+
+local function targetStillValid(denizen: any, target: any): boolean
+	if target == nil then
+		return false
+	end
+	if target:GetHealth() <= 0 then
+		return false
+	end
+	local session = denizen.CombatSession
+	if session == nil then
+		return false
+	end
+	return session.Members[target] ~= nil
 end
 
 return function(config: Config)
 	local attackTimer = 0
+	local currentTarget: any = nil
 
 	return {
-		Enter = function(_denizen: any)
+		Enter = function(denizen: any)
 			attackTimer = 0
+			currentTarget = pickTarget(denizen)
+			denizen.Target = currentTarget
 		end,
 		Update = function(denizen: any, dt: number): string?
-			local target = denizen.Target
-			if target == nil or isDead(target) then
-				denizen.Target = nil
+			if not targetStillValid(denizen, currentTarget) then
+				currentTarget = pickTarget(denizen)
+				denizen.Target = currentTarget
+			end
+
+			if currentTarget == nil then
 				return config.OnTargetLost
 			end
 
 			local pos = denizen.Instance:GetPivot().Position
-			local targetPos = target.Instance:GetPivot().Position
+			local targetPos = currentTarget:GetCFrame().Position
 
 			if (targetPos - denizen.SpawnPosition).Magnitude > config.LeashRange then
 				return config.OnLeashed
@@ -91,7 +144,7 @@ return function(config: Config)
 						Amount = config.AttackDamage,
 						Kind = config.AttackKind,
 						Source = denizen,
-						Target = target,
+						Target = currentTarget,
 					})
 				end
 			end
@@ -100,6 +153,8 @@ return function(config: Config)
 		Exit = function(denizen: any)
 			denizen:StopMoving()
 			denizen:FaceDirection(nil)
+			denizen.Target = nil
+			currentTarget = nil
 		end,
 	}
 end

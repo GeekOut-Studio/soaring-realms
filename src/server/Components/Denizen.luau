@@ -36,10 +36,13 @@ local Trove = require(ReplicatedStorage.Packages.Trove)
 local t = require(ReplicatedStorage.Packages.t)
 
 local Behavior = require(ServerScriptService.Server.Behavior.Behavior)
+local CombatServer = require(ServerScriptService.Server.Servers.CombatServer)
 local AnimationDefs = require(ReplicatedStorage.Shared.Defs.AnimationDefs)
+local CombatTypes = require(ReplicatedStorage.Shared.Types.CombatTypes)
 local DamageTypes = require(ReplicatedStorage.Shared.Types.DamageTypes)
 local DenizenDefs = require(ReplicatedStorage.Shared.Defs.DenizenDefs)
 
+type CombatSession = CombatTypes.CombatSession
 type Damage = DamageTypes.Damage
 
 type DenizenDef = DenizenDefs.DenizenDef
@@ -48,6 +51,9 @@ local ARRIVAL_THRESHOLD = 0.5
 -- Distance below the RootPart's foot the GroundSensor will reach for. Generous so the
 -- denizen doesn't lose ground contact on small slopes or step-downs.
 local GROUND_SENSOR_BUFFER = 5
+-- Out-of-combat regen rate, expressed as a fraction of MaxHealth per second. Denizens
+-- only regenerate while CombatSession is nil; in-combat regen is intentionally zero.
+local OUT_OF_COMBAT_REGEN_FRACTION = 0.25
 
 local Denizen = Component.new({
 	Tag = "Denizen",
@@ -135,6 +141,13 @@ local Denizen = Component.new({
 	heartbeat before movement reconciliation.
 ]=]
 
+--[=[
+	@prop CombatSession CombatSession?
+	@within Denizen
+	Back-reference written by `CombatServer`. Non-nil exactly when the denizen is in
+	combat. Read by behavior states and the `InCombat` predicate.
+]=]
+
 function Denizen:Construct()
 	local kind = self.Instance:GetAttribute("DenizenKind")
 	local name = self.Instance:GetFullName()
@@ -161,6 +174,7 @@ function Denizen:Construct()
 	self.LastAttacker = nil :: any?
 	self.Target = nil :: any?
 	self.Behavior = nil :: any?
+	self.CombatSession = nil :: CombatSession?
 
 	self:SetUpController()
 
@@ -215,8 +229,31 @@ function Denizen:SetUpController()
 end
 
 function Denizen:Stop()
+	CombatServer.Disengage(self)
 	self:AnimationStopHardAll()
 	self.Trove:Destroy()
+end
+
+--[=[
+	Returns the team identifier for this denizen, sourced from the def. `nil` means the
+	denizen is hostile to everyone. Implements the `Combatant` interface.
+	@within Denizen
+	@server
+	@return string?
+]=]
+function Denizen:GetTeam(): string?
+	return self.Def.Team
+end
+
+--[=[
+	Returns the denizen's pivot CFrame (position + facing). Implements the `Combatant`
+	interface for combat-system range and direction checks.
+	@within Denizen
+	@server
+	@return CFrame
+]=]
+function Denizen:GetCFrame(): CFrame
+	return self.Instance:GetPivot()
 end
 
 --[=[
@@ -258,6 +295,10 @@ function Denizen:HeartbeatUpdate(dt: number)
 
 	if self.Behavior ~= nil then
 		self.Behavior:Tick(dt)
+	end
+
+	if self.CombatSession == nil and self.Health > 0 and self.Health < self.MaxHealth then
+		self:SetHealth(self.Health + self.MaxHealth * OUT_OF_COMBAT_REGEN_FRACTION * dt)
 	end
 
 	local target = self.MoveTarget

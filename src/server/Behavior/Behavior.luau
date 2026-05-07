@@ -28,6 +28,7 @@ local PREDICATES = {
 	HealthBelow = require(script.Parent.Predicates.HealthBelow),
 	HealthAbove = require(script.Parent.Predicates.HealthAbove),
 	EnemyInRange = require(script.Parent.Predicates.EnemyInRange),
+	InCombat = require(script.Parent.Predicates.InCombat),
 	RecentlyDamaged = require(script.Parent.Predicates.RecentlyDamaged),
 	NotRecentlyDamaged = require(script.Parent.Predicates.NotRecentlyDamaged),
 }

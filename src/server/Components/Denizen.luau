@@ -59,9 +59,6 @@ local OUT_OF_COMBAT_REGEN_FRACTION = 0.25
 -- Inclusive on both ends. Will move to the def when per-kind drops matter.
 local COIN_DROP_MIN = 5
 local COIN_DROP_MAX = 15
--- Seconds after death before a fresh clone of the spawn-time model is parented back into
--- the workspace.
-local RESPAWN_DELAY = 5
 
 local Denizen = Component.new({
 	Tag = "Denizen",
@@ -184,11 +181,6 @@ function Denizen:Construct()
 	self.Behavior = nil :: any?
 	self.CombatSession = nil :: CombatSession?
 	self.IsDead = false
-
-	-- Clone before any runtime modifications (controller manager, network owner, etc.)
-	-- so the template captures the model's pristine spawn state. Lives parented to nil
-	-- until Die schedules its respawn.
-	self.Template = self.Instance:Clone()
 
 	self:SetUpController()
 
@@ -394,14 +386,7 @@ function Denizen:Die()
 		InventoryServer.AddItem(player, "Coin", count)
 	end
 
-	-- Capture the template before destroying ourselves; the closure keeps it alive
-	-- across the respawn delay even though `self` is gone.
-	local template = self.Template
 	self.Instance:Destroy()
-	task.delay(RESPAWN_DELAY, function()
-		local clone = template:Clone()
-		clone.Parent = Workspace
-	end)
 end
 
 --[=[

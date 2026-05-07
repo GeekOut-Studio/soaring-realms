@@ -8,6 +8,7 @@ local Trove = require(ReplicatedStorage.Packages.Trove)
 local ActionProgressBar = require(ReplicatedStorage.Shared.React.Hud.ActionProgressBar)
 local ColorDefs = require(ReplicatedStorage.Shared.Defs.ColorDefs)
 local Container = require(ReplicatedStorage.Shared.React.Common.Container)
+local HealthTypes = require(ReplicatedStorage.Shared.Types.HealthTypes)
 local HorizontalList = require(ReplicatedStorage.Shared.React.Common.HorizontalList)
 local MovementTypes = require(ReplicatedStorage.Shared.Types.MovementTypes)
 local OutworlderClient = require(ReplicatedStorage.Shared.Components.OutworlderClient)
@@ -20,12 +21,11 @@ local PADDING = UDim.new(0, 4)
 local BAR_HEIGHT = 10
 local BUTTON_SIZE = 56
 
--- TODO: replace with the local Outworlder's authoritative health value once a health
--- system exists. For now the bar always renders full.
-local HEALTH_FRACTION_STUB = 1
-
 local function Hotbar()
 	local stamina, setStamina = React.useState(MovementTypes.MaxStamina)
+	local maxStamina, setMaxStamina = React.useState(MovementTypes.MaxStamina)
+	local health, setHealth = React.useState(HealthTypes.DefaultMaxHealth)
+	local maxHealth, setMaxHealth = React.useState(HealthTypes.DefaultMaxHealth)
 
 	React.useEffect(function()
 		return Observers.observeCharacter(function(player: Player, character: Model)
@@ -35,14 +35,20 @@ local function Hotbar()
 			local trove = Trove.new()
 			trove:AddPromise(OutworlderClient:WaitForInstance(character):andThen(function(componentInstance)
 				setStamina(componentInstance.Stamina)
+				setMaxStamina(componentInstance.MaxStamina)
 				trove:Add(componentInstance.StaminaChanged:Connect(setStamina))
+				trove:Add(componentInstance.MaxStaminaChanged:Connect(setMaxStamina))
+				setHealth(componentInstance.Health)
+				setMaxHealth(componentInstance.MaxHealth)
+				trove:Add(componentInstance.HealthChanged:Connect(setHealth))
+				trove:Add(componentInstance.MaxHealthChanged:Connect(setMaxHealth))
 			end))
 			return trove:WrapClean()
 		end)
 	end, {})
 
-	local staminaFraction = math.clamp(stamina / MovementTypes.MaxStamina, 0, 1)
-	local healthFraction = math.clamp(HEALTH_FRACTION_STUB, 0, 1)
+	local staminaFraction = math.clamp(stamina / maxStamina, 0, 1)
+	local healthFraction = math.clamp(health / maxHealth, 0, 1)
 
 	local hotbarButtons = {}
 	for i = 1, 5 do

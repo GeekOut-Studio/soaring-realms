@@ -27,6 +27,7 @@ local DownloadClient = require(ReplicatedStorage.Shared.Clients.DownloadClient)
 local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
 local ActionTypes = require(ReplicatedStorage.Shared.Types.ActionTypes)
 local EquipmentTypes = require(ReplicatedStorage.Shared.Types.EquipmentTypes)
+local HealthTypes = require(ReplicatedStorage.Shared.Types.HealthTypes)
 local InventoryTypes = require(ReplicatedStorage.Shared.Types.InventoryTypes)
 local MovementTypes = require(ReplicatedStorage.Shared.Types.MovementTypes)
 local Observing = require(ReplicatedStorage.Shared.Observing)
@@ -85,8 +86,14 @@ function OutworlderClient:Construct()
 	self.Player = Players:GetPlayerFromCharacter(self.Instance)
 	self.IsLocalPlayer = self.Player == Players.LocalPlayer
 
-	self.Stamina = MovementTypes.MaxStamina
+	self.MaxStamina = MovementTypes.MaxStamina
+	self.MaxStaminaChanged = self.Trove:Construct(Signal) :: Signal.Signal<number>
+	self.Stamina = self.MaxStamina
 	self.StaminaChanged = self.Trove:Construct(Signal) :: Signal.Signal<number>
+	self.MaxHealth = HealthTypes.DefaultMaxHealth
+	self.MaxHealthChanged = self.Trove:Construct(Signal) :: Signal.Signal<number>
+	self.Health = self.MaxHealth
+	self.HealthChanged = self.Trove:Construct(Signal) :: Signal.Signal<number>
 	self.ActionProgress = nil :: ActionProgress?
 	self.ActionProgressChanged = self.Trove:Construct(Signal) :: Signal.Signal<ActionProgress?>
 	self.WasMoving = false
@@ -95,7 +102,10 @@ function OutworlderClient:Construct()
 	self.Trove:Add(self.Comm)
 	self.EquipmentProperty = self.Comm:GetProperty("Equipment")
 	self.MovementModeProperty = self.Comm:GetProperty("MovementMode")
+	self.MaxStaminaProperty = self.Comm:GetProperty("MaxStamina")
 	self.StaminaProperty = self.Comm:GetProperty("Stamina")
+	self.MaxHealthProperty = self.Comm:GetProperty("MaxHealth")
+	self.HealthProperty = self.Comm:GetProperty("Health")
 	self.ActionProgressProperty = self.Comm:GetProperty("ActionProgress")
 	self.ActionFailedSignal = self.Comm:GetSignal("ActionFailed")
 	self.RequestSetMovementModeFunction = self.Comm:GetFunction("RequestSetMovementMode")
@@ -112,6 +122,45 @@ function OutworlderClient:SetStamina(value: number)
 	end
 	self.Stamina = value
 	self.StaminaChanged:Fire(value)
+end
+
+--[=[
+	Updates the replicated max stamina and fires `MaxStaminaChanged` if the value changed.
+	@within OutworlderClient
+	@param value number
+]=]
+function OutworlderClient:SetMaxStamina(value: number)
+	if self.MaxStamina == value then
+		return
+	end
+	self.MaxStamina = value
+	self.MaxStaminaChanged:Fire(value)
+end
+
+--[=[
+	Updates the replicated health and fires `HealthChanged` if the value actually changed.
+	@within OutworlderClient
+	@param value number
+]=]
+function OutworlderClient:SetHealth(value: number)
+	if self.Health == value then
+		return
+	end
+	self.Health = value
+	self.HealthChanged:Fire(value)
+end
+
+--[=[
+	Updates the replicated max health and fires `MaxHealthChanged` if the value changed.
+	@within OutworlderClient
+	@param value number
+]=]
+function OutworlderClient:SetMaxHealth(value: number)
+	if self.MaxHealth == value then
+		return
+	end
+	self.MaxHealth = value
+	self.MaxHealthChanged:Fire(value)
 end
 
 function OutworlderClient:Start()
@@ -142,8 +191,20 @@ end
 	@private
 ]=]
 function OutworlderClient:SetupLocalControls()
+	self.Trove:Add(Observing.observeCommProperty(self.MaxStaminaProperty, function(value: number)
+		self:SetMaxStamina(value)
+	end))
+
 	self.Trove:Add(Observing.observeCommProperty(self.StaminaProperty, function(stamina: number)
 		self:SetStamina(stamina)
+	end))
+
+	self.Trove:Add(Observing.observeCommProperty(self.MaxHealthProperty, function(value: number)
+		self:SetMaxHealth(value)
+	end))
+
+	self.Trove:Add(Observing.observeCommProperty(self.HealthProperty, function(health: number)
+		self:SetHealth(health)
 	end))
 
 	self.Trove:Add(Observing.observeCommProperty(self.ActionProgressProperty, function(progress: ActionProgress?)

@@ -21,6 +21,7 @@ local EquipmentServer = require(ServerScriptService.Server.Servers.EquipmentServ
 local ActionTypes = require(ReplicatedStorage.Shared.Types.ActionTypes)
 local AnimationDefs = require(ReplicatedStorage.Shared.Defs.AnimationDefs)
 local EquipmentTypes = require(ReplicatedStorage.Shared.Types.EquipmentTypes)
+local HealthTypes = require(ReplicatedStorage.Shared.Types.HealthTypes)
 local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
 local MovementTypes = require(ReplicatedStorage.Shared.Types.MovementTypes)
 local OutworlderShared = require(ReplicatedStorage.Shared.Components.OutworlderShared)
@@ -50,10 +51,33 @@ local Outworlder = Component.new({
 ]=]
 
 --[=[
+	@prop MaxStamina number
+	@within Outworlder
+	Authoritative max stamina. Mirrored to the owning player only via the `MaxStamina` Comm
+	property. Currently seeded from `MovementTypes.MaxStamina`, but will be computed from
+	Skills and other factors in the future.
+]=]
+
+--[=[
 	@prop Stamina number
 	@within Outworlder
 	Authoritative stamina value (0..MaxStamina). Mirrored to the owning player only via
 	the `Stamina` Comm property.
+]=]
+
+--[=[
+	@prop MaxHealth number
+	@within Outworlder
+	Authoritative max health. Mirrored to the owning player only via the `MaxHealth` Comm
+	property. Currently seeded from `HealthTypes.DefaultMaxHealth`, but will be computed
+	from Skills and other factors in the future.
+]=]
+
+--[=[
+	@prop Health number
+	@within Outworlder
+	Authoritative current health (0..MaxHealth). Mirrored to the owning player only via
+	the `Health` Comm property.
 ]=]
 
 --[=[
@@ -85,14 +109,21 @@ function Outworlder:Construct()
 	self.Trove:Add(self.Comm)
 	self.EquipmentProperty = self.Comm:CreateProperty("Equipment", EquipmentTypes.DefaultEquipment)
 	self.MovementModeProperty = self.Comm:CreateProperty("MovementMode", MovementTypes.DefaultMode)
-	self.StaminaProperty = self.Comm:CreateProperty("Stamina", MovementTypes.MaxStamina)
+	self.MaxStamina = MovementTypes.MaxStamina
+	self.MaxStaminaProperty = self.Comm:CreateProperty("MaxStamina", self.MaxStamina)
+	self.StaminaProperty = self.Comm:CreateProperty("Stamina", self.MaxStamina)
+	self.MaxHealth = HealthTypes.DefaultMaxHealth
+	self.MaxHealthProperty = self.Comm:CreateProperty("MaxHealth", self.MaxHealth)
+	self.HealthProperty = self.Comm:CreateProperty("Health", self.MaxHealth)
 	self.ActionProgressProperty = self.Comm:CreateProperty("ActionProgress", nil)
 	self.ActionFailedSignal = self.Comm:CreateSignal("ActionFailed")
 
 	self.MovementMode = MovementTypes.DefaultMode :: MovementMode
-	self.Stamina = MovementTypes.MaxStamina
+	self.Stamina = self.MaxStamina
 	self.StaminaRegenTimer = 0
 	self.StaminaSendAccumulator = 0
+	self.Health = self.MaxHealth
+	self.HealthSendAccumulator = 0
 	self.AirborneAccumulator = 0
 	self.LastActionProgress = nil :: ActionTypes.ActionProgress?
 
@@ -121,7 +152,10 @@ function Outworlder:Start()
 	)
 
 	OutworlderShared.ApplyMode(self.ControllerManager, self.MovementMode)
+	self.MaxStaminaProperty:SetFor(self.Player, self.MaxStamina)
 	self.StaminaProperty:SetFor(self.Player, self.Stamina)
+	self.MaxHealthProperty:SetFor(self.Player, self.MaxHealth)
+	self.HealthProperty:SetFor(self.Player, self.Health)
 end
 
 function Outworlder:Stop()
@@ -470,7 +504,7 @@ function Outworlder:HeartbeatUpdate(dt: number)
 	else
 		self.StaminaRegenTimer = math.max(0, self.StaminaRegenTimer - dt)
 		if self.StaminaRegenTimer <= 0 then
-			self.Stamina = math.min(MovementTypes.MaxStamina, self.Stamina + MovementTypes.StaminaRegenPerSecond * dt)
+			self.Stamina = math.min(self.MaxStamina, self.Stamina + MovementTypes.StaminaRegenPerSecond * dt)
 		end
 	end
 	if self.MovementMode == "Sprint" and self.Stamina <= 0 then
@@ -497,6 +531,39 @@ function Outworlder:HeartbeatUpdate(dt: number)
 	if self.StaminaSendAccumulator >= MovementTypes.StaminaReplicationInterval then
 		self.StaminaSendAccumulator = 0
 		self.StaminaProperty:SetFor(self.Player, self.Stamina)
+	end
+
+	if self.Health < self.MaxHealth then
+		self.Health = math.min(self.MaxHealth, self.Health + HealthTypes.HealthRegenPerSecond * dt)
+	end
+	self.HealthSendAccumulator += dt
+	if self.HealthSendAccumulator >= HealthTypes.HealthReplicationInterval then
+		self.HealthSendAccumulator = 0
+		self.HealthProperty:SetFor(self.Player, self.Health)
+	end
+end
+
+--[=[
+	Subtracts `amount` from the character's authoritative health, clamping at zero, and
+	pushes the new value to the owning client immediately (bypassing the replication
+	throttle so a damage hit feels instant on the HUD). On reaching zero, kills the
+	character via the Humanoid so the default respawn pipeline takes over.
+	@within Outworlder
+	@server
+	@param amount number
+]=]
+function Outworlder:TakeDamage(amount: number)
+	if amount <= 0 then
+		return
+	end
+	self.Health = math.max(0, self.Health - amount)
+	self.HealthSendAccumulator = 0
+	self.HealthProperty:SetFor(self.Player, self.Health)
+	if self.Health <= 0 then
+		local humanoid = self.Instance:FindFirstChildOfClass("Humanoid")
+		if humanoid ~= nil then
+			humanoid.Health = -100
+		end
 	end
 end
 

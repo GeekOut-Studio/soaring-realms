@@ -16,9 +16,11 @@ local Sift = require(ReplicatedStorage.Packages.Sift)
 	@interface Animations
 	@within DenizenDefs
 	@field Idle string? -- `AnimationDefs` key looped over the denizen's lifetime.
+	@field Run string? -- `AnimationDefs` key played whenever the denizen is moving. Layers over `Idle` via `AnimationPriority`.
 ]=]
 export type Animations = {
 	Idle: string?,
+	Run: string?,
 }
 
 --[=[
@@ -27,12 +29,14 @@ export type Animations = {
 	@field Kind string -- The defs key. Auto-filled by `transform`; def authors don't restate it.
 	@field Name string -- Human-readable label.
 	@field MaxHealth number
+	@field MoveSpeed number -- Studs/second. Seeds `ControllerManager.BaseMoveSpeed`.
 	@field Animations Animations
 ]=]
 export type DenizenDef = {
 	Kind: string,
 	Name: string,
 	MaxHealth: number,
+	MoveSpeed: number,
 	Animations: Animations,
 }
 
@@ -42,8 +46,10 @@ local Defs = {
 	Imp = {
 		Name = "Imp",
 		MaxHealth = 50,
+		MoveSpeed = 8,
 		Animations = {
 			Idle = "ImpIdle",
+			Run = "ImpRun",
 		},
 	},
 }

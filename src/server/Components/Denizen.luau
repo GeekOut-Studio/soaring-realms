@@ -13,9 +13,18 @@
 	- Manages an animation track cache via the model's `AnimationController`/`Animator`.
 	  No Humanoid — Denizens don't participate in the default Roblox character pipeline.
 	- Plays the def's idle animation for the lifetime of the denizen.
+	- Drives physics-based locomotion via a programmatically-constructed `ControllerManager`
+	  (`GroundController` + `AirController` + a `ControllerPartSensor` for ground detection).
+	  No Humanoid means no built-in MoveTo / state machine, so movement is reconciled into
+	  `ControllerManager.MovingDirection` and `FacingDirection` from `MoveTarget` and
+	  `FacingTarget` state every heartbeat.
 
 	Reads one attribute:
 	- `DenizenKind` (`DenizenKind`) — selects the def in `DenizenDefs`.
+
+	Model contract:
+	- The model must have a `PrimaryPart` set, and that part must be unanchored. The
+	  PrimaryPart's assembly is handed to the server via `SetNetworkOwner(nil)`.
 ]=]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -29,6 +38,11 @@ local AnimationDefs = require(ReplicatedStorage.Shared.Defs.AnimationDefs)
 local DenizenDefs = require(ReplicatedStorage.Shared.Defs.DenizenDefs)
 
 type DenizenDef = DenizenDefs.DenizenDef
+
+local ARRIVAL_THRESHOLD = 0.5
+-- Distance below the RootPart's foot the GroundSensor will reach for. Generous so the
+-- denizen doesn't lose ground contact on small slopes or step-downs.
+local GROUND_SENSOR_BUFFER = 5
 
 local Denizen = Component.new({
 	Tag = "Denizen",
@@ -60,10 +74,35 @@ local Denizen = Component.new({
 	name from `AnimationDefs`.
 ]=]
 
+--[=[
+	@prop ControllerManager ControllerManager
+	@within Denizen
+	The physics movement controller, constructed in `Start`. Mutating `MovingDirection`
+	and `FacingDirection` is the way to drive the denizen.
+]=]
+
+--[=[
+	@prop MoveTarget Vector3?
+	@within Denizen
+	When non-nil, `HeartbeatUpdate` steers the denizen toward this point each frame and
+	clears the field automatically once the denizen arrives.
+]=]
+
+--[=[
+	@prop FacingTarget Vector3?
+	@within Denizen
+	When non-nil, `HeartbeatUpdate` writes this direction into `FacingDirection` each
+	frame. When nil, the denizen faces along its current movement.
+]=]
+
 function Denizen:Construct()
 	local kind = self.Instance:GetAttribute("DenizenKind")
 	local name = self.Instance:GetFullName()
 	assert(t.keyOf(DenizenDefs)(kind), `{name}: bad DenizenKind attribute`)
+
+	local primary = self.Instance.PrimaryPart
+	assert(primary ~= nil, `{name}: Denizen model must have a PrimaryPart`)
+	assert(not primary.Anchored, `{name}: Denizen PrimaryPart must be unanchored`)
 
 	self.Def = DenizenDefs[kind] :: DenizenDef
 	self.Trove = Trove.new()
@@ -72,6 +111,12 @@ function Denizen:Construct()
 
 	self.MaxHealth = self.Def.MaxHealth
 	self.Health = self.MaxHealth
+
+	self.MoveTarget = nil :: Vector3?
+	self.FacingTarget = nil :: Vector3?
+	self.ControllerManager = nil :: ControllerManager?
+
+	self:SetUpController()
 end
 
 function Denizen:Start()
@@ -81,9 +126,118 @@ function Denizen:Start()
 	end
 end
 
+--[=[
+	Constructs the `ControllerManager` rig (controllers + ground sensor) and parents it
+	under the model. Hands physics ownership of the assembly to the server. Everything
+	created here is added to `self.Trove` so it's torn down when the component stops.
+	@within Denizen
+	@server
+	@private
+]=]
+function Denizen:SetUpController()
+	local primary = self.Instance.PrimaryPart :: BasePart
+	primary:SetNetworkOwner(nil)
+
+	local manager = Instance.new("ControllerManager")
+	manager.Name = "ControllerManager"
+	manager.RootPart = primary
+	manager.BaseMoveSpeed = self.Def.MoveSpeed
+
+	local groundController = Instance.new("GroundController")
+	groundController.Parent = manager
+
+	local airController = Instance.new("AirController")
+	airController.Parent = manager
+
+	local groundSensor = Instance.new("ControllerPartSensor")
+	groundSensor.Name = "GroundSensor"
+	groundSensor.SensorMode = Enum.SensorMode.Floor
+	groundSensor.SearchDistance = primary.Size.Y / 2 + GROUND_SENSOR_BUFFER
+	groundSensor.Parent = primary
+	self.Trove:Add(groundSensor)
+
+	manager.ActiveController = groundController
+	manager.GroundSensor = groundSensor
+	manager.Parent = self.Instance
+	self.Trove:Add(manager)
+
+	self.ControllerManager = manager
+end
+
 function Denizen:Stop()
 	self:AnimationStopHardAll()
 	self.Trove:Destroy()
+end
+
+--[=[
+	Sets a destination point. The denizen will steer toward it on every heartbeat until
+	it arrives (within `ARRIVAL_THRESHOLD`) or `StopMoving` is called.
+	@within Denizen
+	@server
+	@param point Vector3
+]=]
+function Denizen:MoveTo(point: Vector3)
+	self.MoveTarget = point
+end
+
+--[=[
+	Sets an explicit facing direction. While set, the denizen faces this direction
+	regardless of movement. Pass `nil` to fall back to facing along movement.
+	@within Denizen
+	@server
+	@param direction Vector3?
+]=]
+function Denizen:FaceDirection(direction: Vector3?)
+	self.FacingTarget = direction
+end
+
+--[=[
+	Stops the denizen from walking toward its `MoveTarget`. Does not change facing.
+	@within Denizen
+	@server
+]=]
+function Denizen:StopMoving()
+	self.MoveTarget = nil
+end
+
+function Denizen:HeartbeatUpdate(_dt: number)
+	local manager = self.ControllerManager
+	if manager == nil then
+		return
+	end
+
+	local target = self.MoveTarget
+	if target ~= nil then
+		local position = self.Instance:GetPivot().Position
+		local dx = target.X - position.X
+		local dz = target.Z - position.Z
+		if dx * dx + dz * dz < ARRIVAL_THRESHOLD * ARRIVAL_THRESHOLD then
+			self.MoveTarget = nil
+			manager.MovingDirection = Vector3.zero
+		else
+			manager.MovingDirection = Vector3.new(dx, 0, dz).Unit
+		end
+	else
+		manager.MovingDirection = Vector3.zero
+	end
+
+	local moving = not manager.MovingDirection:FuzzyEq(Vector3.zero)
+
+	local facing = self.FacingTarget
+	if facing ~= nil then
+		manager.FacingDirection = facing
+	elseif moving then
+		manager.FacingDirection = manager.MovingDirection
+	end
+
+	local run = self.Def.Animations.Run
+	if run ~= nil then
+		if moving and not self:AnimationIsPlaying(run) then
+			self:AnimationPlay(run)
+		elseif not moving and self:AnimationIsPlaying(run) then
+			self:AnimationStop(run)
+		end
+	end
 end
 
 --[=[

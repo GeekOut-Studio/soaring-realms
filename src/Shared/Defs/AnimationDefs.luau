@@ -10,6 +10,8 @@ local Defs: { [string]: number } = {
 	ToolOverheadSwing = 134572391725643,
 	ToolShoulderedIdle = 125738314234655,
 	ImpIdle = 135155347546291,
+	ImpRun = 113406620650152,
+	ImpAttack = 79492069922415,
 }
 
 local function transform(defs: { [string]: number }): { [string]: Animation }

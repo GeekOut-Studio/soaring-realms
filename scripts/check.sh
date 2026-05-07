@@ -31,3 +31,11 @@ luau-lsp analyze \
     --ignore="Packages/**" \
     --ignore="**/_Index/**" \
     "$@"
+
+# Validate Moonwave doc comments. The extractor errors on malformed blocks,
+# mismatched @param/@return tags, and unknown tags. Its `extract` subcommand
+# only accepts a single input path per invocation, so loop over the files.
+# Output JSON is discarded — we only care about the exit code.
+for file in "$@"; do
+    moonwave-extractor extract "$file" >/dev/null
+done

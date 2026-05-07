@@ -28,14 +28,19 @@
 ]=]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 local Workspace = game:GetService("Workspace")
 
 local Component = require(ReplicatedStorage.Packages.Component)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local t = require(ReplicatedStorage.Packages.t)
 
+local Behavior = require(ServerScriptService.Server.Behavior.Behavior)
 local AnimationDefs = require(ReplicatedStorage.Shared.Defs.AnimationDefs)
+local DamageTypes = require(ReplicatedStorage.Shared.Types.DamageTypes)
 local DenizenDefs = require(ReplicatedStorage.Shared.Defs.DenizenDefs)
+
+type Damage = DamageTypes.Damage
 
 type DenizenDef = DenizenDefs.DenizenDef
 
@@ -95,6 +100,41 @@ local Denizen = Component.new({
 	frame. When nil, the denizen faces along its current movement.
 ]=]
 
+--[=[
+	@prop SpawnPosition Vector3
+	@within Denizen
+	The denizen's PrimaryPart position at construction. Behavior states use this as the
+	anchor for wander/leash/return-to-spawn logic.
+]=]
+
+--[=[
+	@prop LastDamagedTime number?
+	@within Denizen
+	`os.clock()` of the most recent `OnDidTakeDamage` call. `nil` until the first hit. Read
+	by the `RecentlyDamaged` / `NotRecentlyDamaged` predicates.
+]=]
+
+--[=[
+	@prop LastAttacker DamageSource?
+	@within Denizen
+	The `Source` of the most recent damage event. `nil` for environmental damage or until
+	first hit. Read by `Flee` to pick a flee direction.
+]=]
+
+--[=[
+	@prop Target any?
+	@within Denizen
+	The current behavior target — typically an `Outworlder` stashed by the `EnemyInRange`
+	predicate and consumed by `MeleeAggression` / `Flee`.
+]=]
+
+--[=[
+	@prop Behavior any?
+	@within Denizen
+	The per-denizen FSM runner, present iff the def has a `Behavior` field. Ticked once per
+	heartbeat before movement reconciliation.
+]=]
+
 function Denizen:Construct()
 	local kind = self.Instance:GetAttribute("DenizenKind")
 	local name = self.Instance:GetFullName()
@@ -116,7 +156,17 @@ function Denizen:Construct()
 	self.FacingTarget = nil :: Vector3?
 	self.ControllerManager = nil :: ControllerManager?
 
+	self.SpawnPosition = primary.Position
+	self.LastDamagedTime = nil :: number?
+	self.LastAttacker = nil :: any?
+	self.Target = nil :: any?
+	self.Behavior = nil :: any?
+
 	self:SetUpController()
+
+	if self.Def.Behavior ~= nil then
+		self.Behavior = Behavior.new(self, self.Def.Behavior)
+	end
 end
 
 function Denizen:Start()
@@ -200,10 +250,14 @@ function Denizen:StopMoving()
 	self.MoveTarget = nil
 end
 
-function Denizen:HeartbeatUpdate(_dt: number)
+function Denizen:HeartbeatUpdate(dt: number)
 	local manager = self.ControllerManager
 	if manager == nil then
 		return
+	end
+
+	if self.Behavior ~= nil then
+		self.Behavior:Tick(dt)
 	end
 
 	local target = self.MoveTarget
@@ -258,6 +312,21 @@ end
 ]=]
 function Denizen:SetHealth(value: number)
 	self.Health = math.clamp(value, 0, self.MaxHealth)
+end
+
+--[=[
+	Implements `DamageTarget`'s post-apply hook: stamps `LastDamagedTime` and remembers the
+	`Source` as `LastAttacker` so the behavior layer can react. Returns the unchanged
+	`Damage` record (we don't transform here).
+	@within Denizen
+	@server
+	@param damage Damage
+	@return Damage
+]=]
+function Denizen:OnDidTakeDamage(damage: Damage): Damage
+	self.LastDamagedTime = os.clock()
+	self.LastAttacker = damage.Source
+	return damage
 end
 
 --[=[

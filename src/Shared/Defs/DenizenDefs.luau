@@ -31,6 +31,7 @@ export type Animations = {
 	@field MaxHealth number
 	@field MoveSpeed number -- Studs/second. Seeds `ControllerManager.BaseMoveSpeed`.
 	@field Animations Animations
+	@field Behavior BehaviorDef? -- Optional FSM definition consumed by the server-side `Behavior` runner. Omit for static denizens.
 ]=]
 export type DenizenDef = {
 	Kind: string,
@@ -38,6 +39,26 @@ export type DenizenDef = {
 	MaxHealth: number,
 	MoveSpeed: number,
 	Animations: Animations,
+	Behavior: BehaviorDef?,
+}
+
+--[=[
+	@interface BehaviorDef
+	@within DenizenDefs
+	@field Initial string -- Name of the state to enter on construction. Must be a key in `States`.
+	@field States {[string]: {Kind: string, [string]: any}} -- State configs keyed by state name. The `Kind` field selects an implementation in `Server/Behavior/States/`.
+	@field Transitions {{From: string?, When: {Kind: string, [string]: any}, Goto: string}} -- Ordered list of transitions. Evaluated top-to-bottom each tick; first match wins.
+]=]
+export type BehaviorDef = {
+	Initial: string,
+	States: { [string]: { Kind: string, [string]: any } },
+	Transitions: {
+		{
+			From: string?,
+			When: { Kind: string, [string]: any },
+			Goto: string,
+		}
+	},
 }
 
 export type DenizenDefs = { [string]: DenizenDef }
@@ -51,6 +72,44 @@ local Defs = {
 			Idle = "ImpIdle",
 			Run = "ImpRun",
 		},
+		Behavior = {
+			Initial = "Idle",
+			States = {
+				Idle = {
+					Kind = "Wander",
+					Radius = 12,
+					PauseRange = { Min = 2, Max = 5 },
+				},
+				Aggressing = {
+					Kind = "MeleeAggression",
+					AttackRange = 4,
+					LeashRange = 30,
+					AttackCooldown = 1.2,
+					AttackDamage = 8,
+					AttackKind = "Slashing",
+					AttackAnimation = "ImpAttack",
+					OnTargetLost = "Idle",
+					OnLeashed = "Returning",
+				},
+				Fleeing = {
+					Kind = "Flee",
+					Speed = 1.5,
+					Distance = 30,
+				},
+				Returning = {
+					Kind = "ReturnToSpawn",
+					OnArrive = "Idle",
+				},
+			},
+			Transitions = {
+				-- Low health overrides everything else.
+				{ When = { Kind = "HealthBelow", Fraction = 0.25 } :: any, Goto = "Fleeing" },
+				-- From idle wander, engage anything in sight.
+				{ From = "Idle", When = { Kind = "EnemyInRange", Range = 20 } :: any, Goto = "Aggressing" },
+				-- After healing up while fleeing, go back to wandering.
+				{ From = "Fleeing", When = { Kind = "HealthAbove", Fraction = 0.7 } :: any, Goto = "Idle" },
+			},
+		} :: BehaviorDef,
 	},
 }
 

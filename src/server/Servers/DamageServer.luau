@@ -28,14 +28,14 @@ type Damage = DamageTypes.Damage
 
 local DamageServer = {}
 
+local EMPTY_TAGS = table.freeze({}) :: { [string]: true }
+
 --[=[
 	Runs `damage` through the full pipeline and applies the resulting amount to the target.
 	@within DamageServer
 	@server
 	@param damage Damage
 ]=]
-local EMPTY_TAGS = table.freeze({}) :: { [string]: true }
-
 function DamageServer.Damage(damage: Damage)
 	local normalized = table.clone(damage)
 	if normalized.Tags == nil then

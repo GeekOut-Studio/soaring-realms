@@ -1,6 +1,6 @@
 # Rules
 
-- Run `./scripts/check.sh <file>...` on every modified Lua or Luau file. The script regenerates the sourcemap, runs stylua, then runs `luau-lsp analyze` with the right flags. Don't invoke stylua or luau-lsp directly — go through the script so the toolchain stays in one place.
+- Run `./scripts/check.sh <file>...` on every modified Lua or Luau file. The script regenerates the sourcemap, runs stylua, runs `luau-lsp analyze`, then runs `moonwave-extractor extract` to validate doc comments. Don't invoke stylua, luau-lsp, or moonwave-extractor directly — go through the script so the toolchain stays in one place.
 - Use PascalCase for module tables, their public methods, exported names, and all instance fields (`self.*`). Use camelCase only for private module-level functions and purely local variables within a function scope. No underscore prefixes for private members.
 - Prefer `x ~= nil` / `x == nil` over `not x` / `if x` when the intent is a nil check.
 - Prefer `vector:FuzzyEq(Vector3.zero)` over `vector.Magnitude > epsilon` for is-this-vector-zero checks. Skips a `sqrt`, and `FuzzyEq`'s default tolerance matches input-deadzone semantics better than an arbitrary threshold.
@@ -15,7 +15,7 @@
   - `Default*` — the initial value used to seed new players' data.
 - Edit code by modifying files in this repository, not via the Roblox Studio MCP. The repo is synced into Studio via Rojo.
 - Use absolute `require` paths whenever possible — start from a service like `ReplicatedStorage` or `ServerScriptService` (e.g. `require(ServerScriptService.Server.Servers.DataServer)`), not relative paths like `script.Parent.DataServer`. The only acceptable exception is when the path must be resolved at runtime via `:WaitForChild` because the target may not yet exist.
-- Document public interfaces (module functions, exported types, public properties) with Moonwave-style `--[=[...]=]` block comments. Plain `--` comments are fine for private helpers and inline logic notes. Moonwave tag usage:
+- Document public interfaces (module functions, exported types, public properties) with Moonwave-style `--[=[...]=]` block comments. Plain `--` comments are fine for private helpers and inline logic notes. **Function-only modules** — files whose `return` value is a single function rather than a table (React hooks, predicate/state factories, Cmdr hooks, render components) — skip the Moonwave block entirely and use plain `--` comments. Moonwave's data model requires every documented entity to belong to a `@class`, and there's nothing class-shaped in those modules to hang docs off of. Moonwave tag usage for the table-returning modules that do get documented:
   - `@class <Name>` — top of every public module table. All other doc comments in that file use `@within <Name>`.
   - `@prop <name> <type>` — module-level constants and properties.
   - `@interface <Name>` — exported table types with named fields. Follow with one `@field <name> <type>` line per field; add a trailing `--` description on the same line when the field needs explanation.

@@ -1,3 +1,9 @@
+-- React hook returning whether the local device should display mobile-style touch
+-- controls. Initial value uses the static device-capability heuristic
+-- (`TouchEnabled and not KeyboardEnabled`); the hook then subscribes to
+-- `UserInputService.LastInputTypeChanged` and flips on input-modality changes —
+-- touch → mobile, anything else → desktop.
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
@@ -7,21 +13,6 @@ local function computeInitial(): boolean
 	return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 end
 
---[=[
-	@within UseIsMobile
-	@function UseIsMobile
-
-	React hook returning whether the local device should display
-	mobile-style touch controls.
-
-	Initial value uses the static device-capability heuristic
-	(`TouchEnabled and not KeyboardEnabled`). The hook then subscribes
-	to `UserInputService.LastInputTypeChanged` and flips the value when
-	the player switches input modality — touch → mobile, anything else
-	→ desktop.
-
-	@return boolean
-]=]
 return function(): boolean
 	local isMobile, setIsMobile = React.useState(computeInitial)
 

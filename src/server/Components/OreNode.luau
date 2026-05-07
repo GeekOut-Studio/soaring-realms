@@ -28,6 +28,7 @@
 	- `OreNodeKind` (`OreNodeKind`) — selects the def in `OreNodeDefs`.
 ]=]
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 local Workspace = game:GetService("Workspace")
@@ -236,6 +237,24 @@ function OreNode:Construct()
 			self:HandlePromptTriggered(player, entry)
 		end)
 		table.insert(self.BonusEntries, entry)
+	end
+
+	self.Trove:Connect(Players.PlayerRemoving, function(player: Player)
+		self:OnPlayerRemoving(player)
+	end)
+end
+
+--[=[
+	Drops references to a leaving player so their progress entries don't pin the
+	`Player` instance for the lifetime of the node.
+	@within OreNode
+	@param player Player
+]=]
+function OreNode:OnPlayerRemoving(player: Player)
+	self:StopMinerAction(player)
+	self.CenterEntry.PlayerProgress[player] = nil
+	for _, entry in self.BonusEntries do
+		entry.PlayerProgress[player] = nil
 	end
 end
 

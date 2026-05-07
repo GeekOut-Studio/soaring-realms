@@ -544,19 +544,26 @@ function Outworlder:HeartbeatUpdate(dt: number)
 end
 
 --[=[
-	Subtracts `amount` from the character's authoritative health, clamping at zero, and
-	pushes the new value to the owning client immediately (bypassing the replication
-	throttle so a damage hit feels instant on the HUD). On reaching zero, kills the
-	character via the Humanoid so the default respawn pipeline takes over.
+	Returns the character's authoritative current health. Implements `DamageTarget`.
 	@within Outworlder
 	@server
-	@param amount number
+	@return number
 ]=]
-function Outworlder:TakeDamage(amount: number)
-	if amount <= 0 then
-		return
-	end
-	self.Health = math.max(0, self.Health - amount)
+function Outworlder:GetHealth(): number
+	return self.Health
+end
+
+--[=[
+	Sets the character's authoritative health, clamped to `[0, MaxHealth]`, and pushes the
+	new value to the owning client immediately (bypassing the replication throttle so a
+	damage hit feels instant on the HUD). On reaching zero, kills the character via the
+	Humanoid so the default respawn pipeline takes over. Implements `DamageTarget`.
+	@within Outworlder
+	@server
+	@param value number
+]=]
+function Outworlder:SetHealth(value: number)
+	self.Health = math.clamp(value, 0, self.MaxHealth)
 	self.HealthSendAccumulator = 0
 	self.HealthProperty:SetFor(self.Player, self.Health)
 	if self.Health <= 0 then

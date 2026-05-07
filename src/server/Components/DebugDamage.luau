@@ -15,6 +15,7 @@ local Workspace = game:GetService("Workspace")
 local Component = require(ReplicatedStorage.Packages.Component)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
+local DamageServer = require(ServerScriptService.Server.Servers.DamageServer)
 local Outworlder = require(ServerScriptService.Server.Components.Outworlder)
 
 local DAMAGE = 10
@@ -72,7 +73,11 @@ function DebugDamage:HandleTouched(otherPart: BasePart)
 	task.delay(COOLDOWN, function()
 		self.Cooldown[character] = nil
 	end)
-	outworlder:TakeDamage(DAMAGE)
+	DamageServer.Damage({
+		Amount = DAMAGE,
+		Kind = "Crushing",
+		Target = outworlder,
+	})
 end
 
 return DebugDamage

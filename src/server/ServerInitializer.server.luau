@@ -25,6 +25,6 @@ for _, component in ServerScriptService.Server.Components:GetChildren() do
 end
 
 Cmdr:RegisterDefaultCommands()
-Cmdr:RegisterCommandsIn(ReplicatedStorage.Shared.Cmdr.Commands)
-Cmdr:RegisterHooksIn(ReplicatedStorage.Shared.Cmdr.Hooks)
-Cmdr:RegisterTypesIn(ReplicatedStorage.Shared.Cmdr.Types)
+Cmdr:RegisterCommandsIn(ServerScriptService.Server.Cmdr.Commands)
+Cmdr:RegisterHooksIn(ServerScriptService.Server.Cmdr.Hooks)
+Cmdr:RegisterTypesIn(ServerScriptService.Server.Cmdr.Types)

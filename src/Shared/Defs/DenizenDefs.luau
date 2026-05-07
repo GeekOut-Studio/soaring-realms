@@ -85,7 +85,7 @@ local Defs = {
 				},
 				Aggressing = {
 					Kind = "MeleeAggression",
-					AttackRange = 4,
+					AttackRange = 8,
 					LeashRange = 30,
 					AttackCooldown = 1.2,
 					AttackDamage = 8,

@@ -4,9 +4,12 @@
 ]=]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 local TeleportService = game:GetService("TeleportService")
 
 local Comm = require(ReplicatedStorage.Packages.Comm)
+local Promise = require(ReplicatedStorage.Packages.Promise)
+local DataServer = require(ServerScriptService.Server.Servers.DataServer)
 local IslandDefs = require(ReplicatedStorage.Shared.Defs.IslandDefs)
 type IslandKind = IslandDefs.IslandKind
 
@@ -37,11 +40,30 @@ function TeleportServer.TeleportToIslandAsync(players: { Player }, islandKind: I
 		isTeleporting:SetFor(player, true)
 	end
 
+	-- Release each player's ProfileStore session before teleporting so the destination
+	-- server can `StartSessionAsync` immediately. Run in parallel and wait for all to
+	-- finish (or fail) before initiating the actual teleport.
+	local endPromises = {}
+	for _, player in players do
+		table.insert(
+			endPromises,
+			Promise.new(function(resolve)
+				DataServer.EndSessionForTeleport(player)
+				resolve(nil)
+			end)
+		)
+	end
+	Promise.allSettled(endPromises):await()
+
 	local success, err = pcall(TeleportService.TeleportAsync, TeleportService, def.PlaceId, players)
 	if not success then
 		warn(`TeleportServer: Failed to teleport to {islandKind}: {err}`)
+		-- We've already released their sessions, so we can't gracefully recover this
+		-- server's view of their data. Kick so they rejoin and reload cleanly from
+		-- whatever the last save flushed.
 		for _, player in players do
 			isTeleporting:SetFor(player, false)
+			player:Kick("Teleport failed. Please rejoin.")
 		end
 	end
 

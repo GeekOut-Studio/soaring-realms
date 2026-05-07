@@ -463,13 +463,6 @@ function InventoryServer.Init()
 
 	DataServer.ObservePlayer(function(player, data)
 		inventoryProperty:SetFor(player, asInventory(data))
-
-		local kinds = Sift.Dictionary.keys(ItemDefs)
-		for _ = 1, 20 do
-			local kind = kinds[math.random(1, #kinds)]
-			InventoryServer.AddItem(player, kind)
-		end
-
 		return nil
 	end)
 end

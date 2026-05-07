@@ -2,15 +2,17 @@
 
 --[=[
 	@class DataServer
-	In-memory player data store. A persistent DataStore implementation will replace
-	this — at which point the eager-load on `PlayerAdded` will become the
-	`GetAsync` boundary, the `Loaded` signal will fire after that resolves, and
-	`UpdateData` will queue persistence. The synchronous-with-fallbacks read API
-	exposed here is intentionally designed to survive that transition.
+	Player data store backed by ProfileStore (MAD Studio / loleris) for persistence and
+	session locking. Wraps ProfileStore so the rest of the codebase reads and writes
+	through the same immutable, frozen-table API regardless of the persistence backend.
 
 	Lifecycle: `Init` connects `Players.PlayerAdded` and `Players.PlayerRemoving`
 	directly. Because `ServerInitializer` calls `DataServer.Init` before any
 	other server's `Init`, our connections are established first.
+
+	The `Loaded` signal fires after `ProfileStore:StartSessionAsync` resolves, which
+	yields. Callers that observe per-player setup should use `ObservePlayer` rather than
+	connecting `Players.PlayerAdded` directly so they don't fire before data is ready.
 
 	Two access patterns:
 
@@ -21,22 +23,44 @@
 	- For ad-hoc reads / writes outside that lifecycle: use `GetData`/`UpdateData`
 	  directly. Both return `nil` (rather than asserting) when the player's data
 	  isn't loaded, so downstream code can substitute defaults or refuse.
+
+	On the inside, `Profile.Data` is the live mutable table ProfileStore auto-saves; we
+	mirror it as a frozen snapshot in `dataByPlayer` for the API. `UpdateData` mutates
+	`Profile.Data` in place to match the updater's result so auto-saves carry the change.
 ]=]
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local ServerScriptService = game:GetService("ServerScriptService")
 
 local Sift = require(ReplicatedStorage.Packages.Sift)
 local Signal = require(ReplicatedStorage.Packages.Signal)
 
+local ProfileStore = require(ServerScriptService.ServerPackages.ProfileStore)
 local PlayerDataTypes = require(ReplicatedStorage.Shared.Types.PlayerDataTypes)
 
 type PlayerData = PlayerDataTypes.PlayerData
 
 local DataServer = {}
 
+local PROFILE_STORE_NAME = "PlayerData"
+
 local dataByPlayer: { [Player]: PlayerData } = {}
+local profileByPlayer: { [Player]: any } = {}
+-- Players for whom we're voluntarily ending the session ahead of a teleport. The
+-- `OnSessionEnd` handler reads this to suppress its kick, since the player is on
+-- their way to another place rather than being yanked out from under us.
+local teleportingOut: { [Player]: true } = {}
 local loaded = Signal.new() :: Signal.Signal<Player, PlayerData>
+
+-- One ProfileStore for the whole game. We pass the template so first-time profiles
+-- start with the same shape as `PlayerDataTypes.Template`, and `Profile:Reconcile()`
+-- backfills any newly added top-level fields on existing profiles. Studio runs
+-- against `.Mock` so test sessions don't pollute the live DataStore; live servers
+-- use the real one.
+local realStore = ProfileStore.New(PROFILE_STORE_NAME, PlayerDataTypes.Template)
+local profileStore = if RunService:IsStudio() then realStore.Mock else realStore
 
 --[=[
 	@prop Loaded Signal<Player, PlayerData>
@@ -47,25 +71,112 @@ local loaded = Signal.new() :: Signal.Signal<Player, PlayerData>
 ]=]
 DataServer.Loaded = loaded
 
+-- Replaces the contents of `profile.Data` with an unfrozen deep copy of `newData`.
+-- Mutates in place so ProfileStore's auto-save sees the change — replacing the
+-- table reference would orphan ProfileStore's tracking.
+local function syncToProfile(profile: any, newData: PlayerData)
+	for key in profile.Data do
+		profile.Data[key] = nil
+	end
+	for key, value in newData :: any do
+		profile.Data[key] = Sift.Dictionary.copyDeep(value)
+	end
+end
+
+local function freezeSnapshot(source: any): PlayerData
+	return table.freeze(Sift.Dictionary.copyDeep(source)) :: PlayerData
+end
+
 local function loadFor(player: Player)
-	if dataByPlayer[player] ~= nil then
+	if profileByPlayer[player] ~= nil then
 		return
 	end
-	local data = table.freeze(Sift.Dictionary.copyDeep(PlayerDataTypes.Template))
+
+	local profile = profileStore:StartSessionAsync(`Player_{player.UserId}`, {
+		Cancel = function()
+			return player.Parent ~= Players
+		end,
+	})
+
+	if profile == nil then
+		-- Either the player left during the load, or another server held the session
+		-- past `START_SESSION_TIMEOUT`. Kick so they can rejoin and retry cleanly.
+		player:Kick("Failed to load profile data. Please rejoin.")
+		return
+	end
+
+	profile:AddUserId(player.UserId)
+	profile:Reconcile()
+
+	profile.OnSessionEnd:Connect(function()
+		profileByPlayer[player] = nil
+		dataByPlayer[player] = nil
+		if teleportingOut[player] then
+			-- We ended the session ourselves to hand off cleanly to another place;
+			-- don't kick — the player is mid-teleport.
+			teleportingOut[player] = nil
+			return
+		end
+		-- Another server stole the session, or ProfileStore decided to end ours
+		-- (shutdown, critical state). Either way, this server can no longer write
+		-- to this profile, so kick the player off this server.
+		player:Kick("Profile session ended. Please rejoin.")
+	end)
+
+	if player.Parent ~= Players then
+		-- Player left while we were yielding. End the session so another server
+		-- (or a future rejoin) can pick it up immediately.
+		profile:EndSession()
+		return
+	end
+
+	profileByPlayer[player] = profile
+	local data = freezeSnapshot(profile.Data)
 	dataByPlayer[player] = data
 	loaded:Fire(player, data)
 end
 
 local function unloadFor(player: Player)
+	local profile = profileByPlayer[player]
+	profileByPlayer[player] = nil
 	dataByPlayer[player] = nil
+	if profile ~= nil then
+		profile:EndSession()
+	end
 end
 
 function DataServer.Init()
 	for _, player in Players:GetPlayers() do
-		loadFor(player)
+		task.spawn(loadFor, player)
 	end
 	Players.PlayerAdded:Connect(loadFor)
 	Players.PlayerRemoving:Connect(unloadFor)
+end
+
+--[=[
+	Ends `player`'s ProfileStore session and yields until the final save lands. Call
+	this immediately before `TeleportService:TeleportAsync` so the destination server
+	can `StartSessionAsync` with no session-steal wait.
+
+	No-op when the player has no active session. Suppresses the usual "session ended"
+	kick from the `OnSessionEnd` handler — the player is on their way to another
+	place, not being booted.
+	@within DataServer
+	@yields
+	@param player Player
+]=]
+function DataServer.EndSessionForTeleport(player: Player)
+	local profile = profileByPlayer[player]
+	if profile == nil then
+		return
+	end
+	teleportingOut[player] = true
+	profile:EndSession()
+	-- Block until ProfileStore actually flushes and releases. `EndSession` itself
+	-- is fire-and-forget; the `OnSessionEnd` signal is what tells us we're done.
+	if profile:IsActive() then
+		profile.OnSessionEnd:Wait()
+	end
 end
 
 --[=[
@@ -105,10 +216,12 @@ end
 ]=]
 function DataServer.UpdateData(player: Player, updater: (PlayerData) -> PlayerData): PlayerData?
 	local current = dataByPlayer[player]
-	if current == nil then
+	local profile = profileByPlayer[player]
+	if current == nil or profile == nil then
 		return nil
 	end
 	local newData = table.freeze(updater(current))
+	syncToProfile(profile, newData)
 	dataByPlayer[player] = newData
 	return newData
 end

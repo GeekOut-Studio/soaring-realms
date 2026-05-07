@@ -63,6 +63,7 @@ packButton.Click:Connect(function()
 	end
 
 	packChild(ServerScriptService, "Server")
+	packChild(ServerScriptService, "ServerPackages")
 	packChild(ReplicatedStorage, "Shared")
 	packChild(ReplicatedStorage, "Packages")
 	packChild(ServerStorage, "Assets")

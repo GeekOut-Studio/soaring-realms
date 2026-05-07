@@ -24,6 +24,7 @@ function Bootstrapper.Init()
 	-- server-side code; capture helper before the move
 	local earlyHelper = sourceFolder.Server.BootstrapperEarlyPlayerHelper
 	sourceFolder.Server.Parent = ServerScriptService
+	sourceFolder.ServerPackages.Parent = ServerScriptService
 
 	-- client-side code
 	local client = sourceFolder.Client

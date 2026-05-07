@@ -9,6 +9,7 @@ local Defs: { [string]: number } = {
 	CrouchWalk = 96011308580698,
 	ToolOverheadSwing = 134572391725643,
 	ToolShoulderedIdle = 125738314234655,
+	ImpIdle = 135155347546291,
 }
 
 local function transform(defs: { [string]: number }): { [string]: Animation }

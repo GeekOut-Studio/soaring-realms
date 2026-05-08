@@ -42,9 +42,10 @@ local function commit(player: Player, newInventory: Inventory)
 end
 
 --[=[
-	Returns a shallow copy of the player's current inventory. If the player's
-	data isn't loaded, returns a copy of the default (empty) inventory — callers
-	never receive nil and never crash.
+	Returns the player's current inventory as a deeply frozen reference. If the
+	player's data isn't loaded, returns the (also deeply frozen) default starting
+	inventory — callers never receive nil and never crash. Mutation attempts error
+	rather than silently corrupting the snapshot.
 	@within InventoryServer
 	@param player Player
 	@return Inventory
@@ -52,9 +53,9 @@ end
 function InventoryServer.GetInventory(player: Player): Inventory
 	local data = DataServer.GetData(player)
 	if data == nil then
-		return Sift.Dictionary.copy(InventoryTypes.DefaultInventory)
+		return InventoryTypes.DefaultInventory
 	end
-	return Sift.Dictionary.copy(asInventory(data))
+	return asInventory(data)
 end
 
 --[=[

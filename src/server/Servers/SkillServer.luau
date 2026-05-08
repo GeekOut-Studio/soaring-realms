@@ -51,9 +51,11 @@ local function commit(player: Player, newSkills: Skills)
 end
 
 --[=[
-	Returns a shallow copy of the player's current skills. If the player's data
-	isn't loaded, returns a copy of the default skills (every skill at level 1,
-	zero experience) — callers never receive nil and never crash.
+	Returns the player's current skills as a deeply frozen reference. If the
+	player's data isn't loaded, returns the (also deeply frozen) default skills
+	(every skill at level 1, zero experience) — callers never receive nil and
+	never crash. Mutation attempts error rather than silently corrupting the
+	snapshot.
 	@within SkillServer
 	@param player Player
 	@return Skills
@@ -61,9 +63,9 @@ end
 function SkillServer.GetSkills(player: Player): Skills
 	local data = DataServer.GetData(player)
 	if data == nil then
-		return Sift.Dictionary.copy(SkillTypes.DefaultSkills)
+		return SkillTypes.DefaultSkills
 	end
-	return Sift.Dictionary.copy(asSkills(data))
+	return asSkills(data)
 end
 
 --[=[

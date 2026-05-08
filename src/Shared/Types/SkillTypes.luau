@@ -84,7 +84,7 @@ SkillTypes.KindSet = table.freeze(kindSet)
 ]=]
 local defaults: Skills = {}
 for _, kind in SkillTypes.Kinds do
-	defaults[kind] = { Level = 1, Experience = 0 }
+	defaults[kind] = table.freeze({ Level = 1, Experience = 0 })
 end
 SkillTypes.DefaultSkills = table.freeze(defaults)
 

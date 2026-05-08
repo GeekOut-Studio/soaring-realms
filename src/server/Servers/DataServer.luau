@@ -83,8 +83,22 @@ local function syncToProfile(profile: any, newData: PlayerData)
 	end
 end
 
+-- Recursively freezes `t` and every nested table, returning the same reference.
+-- The `isfrozen` short-circuit makes this cheap on incremental updates where most
+-- of the tree is structurally shared from the prior frozen snapshot — unchanged
+-- sub-trees are skipped entirely.
+local function deepFreeze<T>(t: T): T
+	if typeof(t) == "table" and not table.isfrozen(t :: any) then
+		for _, v in t :: any do
+			deepFreeze(v)
+		end
+		table.freeze(t :: any)
+	end
+	return t
+end
+
 local function freezeSnapshot(source: any): PlayerData
-	return table.freeze(Sift.Dictionary.copyDeep(source)) :: PlayerData
+	return deepFreeze(Sift.Dictionary.copyDeep(source)) :: PlayerData
 end
 
 local function loadFor(player: Player)
@@ -220,7 +234,7 @@ function DataServer.UpdateData(player: Player, updater: (PlayerData) -> PlayerDa
 	if current == nil or profile == nil then
 		return nil
 	end
-	local newData = table.freeze(updater(current))
+	local newData = deepFreeze(updater(current))
 	syncToProfile(profile, newData)
 	dataByPlayer[player] = newData
 	return newData

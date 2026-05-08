@@ -209,12 +209,17 @@ end
 	handlers (e.g. `SingleTargetMelee`) to source per-swing power, range, and
 	damage type from the wielder's equipped weapon rather than duplicating those
 	values into per-ability config.
+
+	Reads through `EquipmentServer.GetEquipment` (the authoritative,
+	deeply-frozen, allocation-free source) rather than `self.EquipmentProperty`,
+	which exists for OutworlderClient gear-rendering on remote clients and
+	isn't the right source-of-truth on the server.
 	@within Outworlder
 	@param slot EquipmentSlot
 	@return CombatStats?
 ]=]
 function Outworlder:GetCombatStats(slot: EquipmentTypes.EquipmentSlot): CombatStats?
-	local item = self.EquipmentProperty:Get()[slot]
+	local item = EquipmentServer.GetEquipment(self.Player)[slot]
 	if item == nil then
 		return nil
 	end

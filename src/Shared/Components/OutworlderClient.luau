@@ -259,7 +259,7 @@ function OutworlderClient:TryFirePrimaryAbility()
 	if def == nil or def.PrimaryAbility == nil then
 		return
 	end
-	print(AbilityClient.Activate(def.PrimaryAbility))
+	AbilityClient.Activate(def.PrimaryAbility)
 end
 
 --[=[

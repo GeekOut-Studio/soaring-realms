@@ -120,6 +120,12 @@ function AbilityServer.Activate(player: Player, abilityKind: string): (boolean, 
 	local handler = HANDLERS[def.Handler]
 	assert(handler ~= nil, `AbilityServer.Activate: no handler registered for "{def.Handler}"`)
 
+	handler.Activate(outworlder, def.Config)
+
+	-- Cooldown is computed AFTER `Activate` so the handler may legally mutate
+	-- activator state (e.g. swap weapons, consume buffs) and have those changes
+	-- reflected in the new cooldown duration. Re-entry between `Activate`'s
+	-- start and this assignment is impossible because no handler yields.
 	local cooldown = def.Cooldown
 	if handler.OnWillCooldown ~= nil then
 		cooldown = handler.OnWillCooldown(cooldown, outworlder, def.Config)
@@ -128,8 +134,6 @@ function AbilityServer.Activate(player: Player, abilityKind: string): (boolean, 
 	local group = AbilityShared.GetCooldownGroup(def)
 	cooldowns[group] = Workspace:GetServerTimeNow() + cooldown
 	cooldownsProperty:SetFor(player, cooldowns)
-
-	handler.Activate(outworlder, def.Config)
 
 	return true, nil
 end
@@ -147,11 +151,12 @@ function AbilityServer.Init()
 		return success, reason or ""
 	end)
 
-	Players.PlayerAdded:Connect(function(player)
+	local function pushInitialCooldowns(player: Player)
 		cooldownsProperty:SetFor(player, getCooldowns(player))
-	end)
+	end
+	Players.PlayerAdded:Connect(pushInitialCooldowns)
 	for _, player in Players:GetPlayers() do
-		cooldownsProperty:SetFor(player, getCooldowns(player))
+		task.spawn(pushInitialCooldowns, player)
 	end
 
 	Players.PlayerRemoving:Connect(function(player)

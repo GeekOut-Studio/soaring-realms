@@ -61,12 +61,13 @@ function AbilityShared.IsAffordableAndReady(snapshot: ActivatorSnapshot, def: Ab
 		return false, "Ability is on cooldown."
 	end
 	if def.Costs.Stamina ~= nil and snapshot.Stamina < def.Costs.Stamina then
-		return false, "Not enough stamina."
+		return false, `Not enough stamina ({snapshot.Stamina} / {def.Costs.Stamina} required).`
 	end
 	if def.Costs.Items ~= nil then
 		for kind, count in def.Costs.Items do
-			if snapshot.GetItemCount(kind) < count then
-				return false, "Missing required items."
+			local have = snapshot.GetItemCount(kind)
+			if have < count then
+				return false, `Missing {kind}: have {have}, need {count}.`
 			end
 		end
 	end

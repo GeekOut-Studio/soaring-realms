@@ -323,10 +323,12 @@ end
 	any failure (lost skill buff, filled inventory, unequipped tool, …) ends the
 	action with `Result.Fail` and a notification.
 
-	The swing cadence (`Interval`) is captured at action start so it stays stable
-	across the mining session. Per-swing power is re-read from the currently
-	equipped pickaxe in `OnHit`, so a mid-action tool swap is reflected in damage
-	on the next swing. (Unequipping the tool entirely is caught by the per-swing
+	The pickaxe's `MiningStats` are re-read every Update tick, so a mid-action
+	tool swap is reflected immediately in both damage (via `OnHit`) and swing
+	cadence. The `while elapsed >= interval` loop handles cadence changes
+	naturally: a faster pickaxe drains accumulated `elapsed` into multiple
+	swings on the swap tick; a slower pickaxe just waits longer for the next
+	swing. (Unequipping the tool entirely is caught by the per-swing
 	requirements recheck and stops the action.) Movement-based interruption is
 	handled by `Outworlder` (it consults `Action.AllowsMovement`).
 	@within OreNode
@@ -348,13 +350,13 @@ function OreNode:BeginMining(player: Player, outworlder: any, entry: NodeEntry)
 	local stats = findMiningStats(player)
 	assert(stats ~= nil, "mining requirement passed but no mining stats found")
 
-	local interval = stats.Interval
+	local initialInterval = stats.Interval
 	local elapsed = 0
 
 	outworlder:StartAction({
 		Name = "Mining",
 		AllowsMovement = false,
-		CompletionTimestamp = Workspace:GetServerTimeNow() + interval,
+		CompletionTimestamp = Workspace:GetServerTimeNow() + initialInterval,
 		Alpha = nil,
 		Start = function(actionSelf)
 			node.ActiveMiners[player] = {
@@ -363,10 +365,16 @@ function OreNode:BeginMining(player: Player, outworlder: any, entry: NodeEntry)
 				Entry = entry,
 			}
 			outworlder:FaceTowards(entry.Root.Position)
-			outworlder:AnimationPlayWithDuration("ToolOverheadSwing", interval)
+			outworlder:AnimationPlayWithDuration("ToolOverheadSwing", initialInterval)
 		end,
 		Update = function(actionSelf, dt)
 			elapsed += dt
+			local currentStats = findMiningStats(player)
+			if currentStats == nil then
+				outworlder:NotifyActionFailed("You can't do that right now.")
+				return ActionTypes.Result.Fail
+			end
+			local interval = currentStats.Interval
 			while elapsed >= interval do
 				elapsed -= interval
 				local stillOk, stillMessage = RequirementsServer.CheckForPlayer(player, def.Requirements)
@@ -374,7 +382,7 @@ function OreNode:BeginMining(player: Player, outworlder: any, entry: NodeEntry)
 					outworlder:NotifyActionFailed(stillMessage or "You can't do that right now.")
 					return ActionTypes.Result.Fail
 				end
-				node:OnHit(player, entry)
+				node:OnHit(player, entry, currentStats)
 				actionSelf.CompletionTimestamp = Workspace:GetServerTimeNow() + interval
 				outworlder:AnimationPlayWithDuration("ToolOverheadSwing", interval)
 			end
@@ -388,25 +396,21 @@ function OreNode:BeginMining(player: Player, outworlder: any, entry: NodeEntry)
 end
 
 --[=[
-	Applies the consequences of a single pickaxe swing. The currently equipped
-	pickaxe's `MiningStats.Power` is read fresh per swing (so mid-action tool
-	swaps are reflected immediately), scaled by the player's Mining level via
-	`SkillShared.Mining.GetEffectivePower`, and one value is rolled from the
-	resulting range. That roll is used as damage against both the per-player
-	progress meter (scaled by `EfficiencyMultiplier`) and, when the entry
-	contributes, the shared break meter. Grants drop+XP on a progress fill.
+	Applies the consequences of a single pickaxe swing. The caller passes in the
+	current `MiningStats`, scaled by the player's Mining level via
+	`SkillShared.Mining.GetEffectivePower`; one value is rolled from the resulting
+	range and used as damage against both the per-player progress meter (scaled by
+	`EfficiencyMultiplier`) and, when the entry contributes, the shared break
+	meter. Grants drop+XP on a progress fill.
 	@within OreNode
 	@param player Player
 	@param entry NodeEntry
+	@param stats MiningStats -- The pickaxe stats in effect for this swing. Caller fetches per Update tick so mid-action tool swaps are reflected.
 ]=]
-function OreNode:OnHit(player: Player, entry: NodeEntry)
+function OreNode:OnHit(player: Player, entry: NodeEntry, stats: MiningStats)
 	local miner = self.ActiveMiners[player]
 	assert(miner ~= nil, "OnHit called for player with no active miner")
 	local def = self.Def
-	-- The per-swing requirements recheck guarantees a mining-capable pickaxe is
-	-- equipped; the assertion is defensive against drift.
-	local stats = findMiningStats(player)
-	assert(stats ~= nil, "OnHit reached without a mining-capable pickaxe equipped")
 	local miningLevel = SkillServer.GetSkills(player).Mining.Level
 	local minPower, maxPower = SkillShared.Mining.GetEffectivePower(stats, miningLevel)
 	local rolled = self.Random:NextNumber(minPower, maxPower)

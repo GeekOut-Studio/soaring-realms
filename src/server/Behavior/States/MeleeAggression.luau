@@ -22,6 +22,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
+local Targeting = require(ServerScriptService.Server.Behavior.Targeting)
 local DamageServer = require(ServerScriptService.Server.Servers.DamageServer)
 local CombatTypes = require(ReplicatedStorage.Shared.Types.CombatTypes)
 local DamageTypes = require(ReplicatedStorage.Shared.Types.DamageTypes)
@@ -116,7 +117,7 @@ return function(config: Config)
 			local pos = denizen.Instance:GetPivot().Position
 			local targetPos = currentTarget:GetCFrame().Position
 
-			if (targetPos - denizen.SpawnPosition).Magnitude > config.LeashRange then
+			if not Targeting.WithinCylinder(targetPos, denizen.SpawnPosition, config.LeashRange) then
 				return config.OnLeashed
 			end
 

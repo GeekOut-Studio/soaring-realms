@@ -9,6 +9,7 @@
 
 local ServerScriptService = game:GetService("ServerScriptService")
 
+local Targeting = require(ServerScriptService.Server.Behavior.Targeting)
 local CombatServer = require(ServerScriptService.Server.Servers.CombatServer)
 
 --[=[
@@ -34,7 +35,7 @@ return function(config: Config)
 		end,
 		Update = function(denizen: any, _dt: number): string?
 			local pos = denizen.Instance:GetPivot().Position
-			if (pos - denizen.SpawnPosition).Magnitude <= arrivalRadius then
+			if Targeting.WithinCylinder(pos, denizen.SpawnPosition, arrivalRadius) then
 				return config.OnArrive
 			end
 			if denizen.MoveTarget == nil then

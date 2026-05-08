@@ -102,8 +102,6 @@ local Defs = {
 			Transitions = {
 				-- From idle wander, engage anything in sight.
 				{ From = "Idle", When = { Kind = "EnemyInRange", Range = 20 } :: any, Goto = "Aggressing" },
-				-- After healing up while fleeing, go back to wandering.
-				{ From = "Fleeing", When = { Kind = "HealthAbove", Fraction = 0.7 } :: any, Goto = "Idle" },
 			},
 		} :: BehaviorDef,
 	},

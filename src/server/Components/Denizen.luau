@@ -174,7 +174,7 @@ function Denizen:Construct()
 	self.FacingTarget = nil :: Vector3?
 	self.ControllerManager = nil :: ControllerManager?
 
-	self.SpawnPosition = primary.Position
+	self.SpawnPosition = self.Instance:GetPivot().Position
 	self.LastDamagedTime = nil :: number?
 	self.LastAttacker = nil :: any?
 	self.Target = nil :: any?

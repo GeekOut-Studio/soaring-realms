@@ -23,3 +23,4 @@
   - `@param <name> <type>` / `@return <type>` — function parameters and return values.
   - `@yields` — mark functions that yield.
   - Don't use `@server` / `@client`. The realm is unambiguous from the file's location in the source tree, so the tag adds noise without information.
+  - Sub-table namespacing (e.g. `SkillShared.Mining.GetEffectivePower`): Moonwave classes are flat — there's no nested-class concept, and `@class`/`@within` are mutually exclusive on the same block. Document sub-table members with `@function <SubTable>.<Name>` plus `@within <ParentClass>`. The sub-table itself stays a plain Lua table (no `@class`), and the rendered docs preserve the dotted call path.

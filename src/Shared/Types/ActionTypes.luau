@@ -26,6 +26,7 @@ export type StopReason = "Interrupted" | "Completed" | "Failed"
 	@field AllowsMovement boolean -- Whether the character may move while this action runs.
 	@field CompletionTimestamp number? -- Server-time (`Workspace:GetServerTimeNow()`) at which the current cycle completes. Mutually exclusive with `Alpha`.
 	@field Alpha number? -- Direct progress value in 0..1. Mutually exclusive with `CompletionTimestamp`.
+	@field Start ((self: Action) -> ())? -- Optional. Called by `Outworlder:StartAction` after any prior action's `Stop` has run and `CurrentAction` has been set. Use for setup that must happen after the previous action's teardown (e.g. registering the player into shared mutable state the prior action might also have written).
 	@field Update (self: Action, dt: number) -> ActionResult -- Called every Heartbeat.
 	@field Stop (self: Action, reason: StopReason) -> () -- Called when the action ends for any reason.
 ]=]
@@ -34,6 +35,7 @@ export type Action = {
 	AllowsMovement: boolean,
 	CompletionTimestamp: number?,
 	Alpha: number?,
+	Start: ((self: Action) -> ())?,
 	Update: (self: Action, dt: number) -> ActionResult,
 	Stop: (self: Action, reason: StopReason) -> (),
 }

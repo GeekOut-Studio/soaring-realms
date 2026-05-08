@@ -350,12 +350,21 @@ function OreNode:BeginMining(player: Player, outworlder: any, entry: NodeEntry)
 	local interval = stats.Interval
 	local elapsed = 0
 
-	local action: Action
-	action = {
+	outworlder:StartAction({
 		Name = "Mining",
 		AllowsMovement = false,
 		CompletionTimestamp = Workspace:GetServerTimeNow() + interval,
 		Alpha = nil,
+		Start = function(actionSelf)
+			node.ActiveMiners[player] = {
+				Outworlder = outworlder,
+				Action = actionSelf,
+				Entry = entry,
+				Stats = stats,
+			}
+			outworlder:FaceTowards(entry.Root.Position)
+			outworlder:AnimationPlayWithDuration("ToolOverheadSwing", interval)
+		end,
 		Update = function(actionSelf, dt)
 			elapsed += dt
 			while elapsed >= interval do
@@ -375,17 +384,7 @@ function OreNode:BeginMining(player: Player, outworlder: any, entry: NodeEntry)
 			outworlder:AnimationStop("ToolOverheadSwing", 0.1)
 			node.ActiveMiners[player] = nil
 		end,
-	}
-
-	self.ActiveMiners[player] = {
-		Outworlder = outworlder,
-		Action = action,
-		Entry = entry,
-		Stats = stats,
-	}
-	outworlder:FaceTowards(entry.Root.Position)
-	outworlder:AnimationPlayWithDuration("ToolOverheadSwing", interval)
-	outworlder:StartAction(action)
+	})
 end
 
 --[=[

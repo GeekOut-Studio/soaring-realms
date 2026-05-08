@@ -215,6 +215,10 @@ function Outworlder:StartAction(action: Action)
 		self.CurrentAction:Stop("Interrupted")
 	end
 	self.CurrentAction = action
+	local start = action.Start
+	if start ~= nil then
+		start(action)
+	end
 end
 
 --[=[

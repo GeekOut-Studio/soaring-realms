@@ -23,6 +23,7 @@ local Component = require(ReplicatedStorage.Packages.Component)
 local Signal = require(ReplicatedStorage.Packages.Signal)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
+local AbilityClient = require(ReplicatedStorage.Shared.Clients.AbilityClient)
 local DownloadClient = require(ReplicatedStorage.Shared.Clients.DownloadClient)
 local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
 local ActionTypes = require(ReplicatedStorage.Shared.Types.ActionTypes)
@@ -236,7 +237,29 @@ function OutworlderClient:HandleInput(input: InputObject)
 		self:ToggleSprint()
 	elseif input.KeyCode == Enum.KeyCode.LeftControl then
 		self:ToggleCrouch()
+	elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
+		self:TryFirePrimaryAbility()
 	end
+end
+
+--[=[
+	Looks up the primary ability of the player's currently equipped main-hand
+	item, if any, and asks the server to activate it. Server is authoritative
+	for cooldown/cost/requirements; this is fire-and-forget from the client.
+	No-op when no equipped item exposes a `PrimaryAbility`.
+	@within OutworlderClient
+]=]
+function OutworlderClient:TryFirePrimaryAbility()
+	local equipment = self.EquipmentProperty:Get() :: Equipment
+	local item = equipment.MainHandMelee
+	if item == nil then
+		return
+	end
+	local def = ItemDefs[item.Kind]
+	if def == nil or def.PrimaryAbility == nil then
+		return
+	end
+	print(AbilityClient.Activate(def.PrimaryAbility))
 end
 
 --[=[

@@ -10,25 +10,25 @@
 ]=]
 
 --[=[
-	@type DamageKind "Slashing" | "Piercing" | "Crushing"
+	@type DamageType "Slashing" | "Piercing" | "Crushing"
 	@within DamageTypes
-	String-literal union of damage kinds. Future resistances and on-hit effects key off
+	String-literal union of damage types. Future resistances and on-hit effects key off
 	this field.
 ]=]
-export type DamageKind = "Slashing" | "Piercing" | "Crushing"
+export type DamageType = "Slashing" | "Piercing" | "Crushing"
 
 --[=[
 	@interface Damage
 	@within DamageTypes
 	@field Amount number -- Pre-application damage amount in HP. Hooks may transform this.
-	@field Kind DamageKind
+	@field Type DamageType
 	@field Source DamageSource? -- Origin of the damage. `nil` for environmental hazards.
 	@field Target DamageTarget
 	@field Tags {[string]: true}? -- Free-form labels modifiers can use to tag and filter damage events. Normalized to an empty frozen table by `DamageServer.Damage` on entry, so downstream hooks can rely on it being non-nil.
 ]=]
 export type Damage = {
 	Amount: number,
-	Kind: DamageKind,
+	Type: DamageType,
 	Source: DamageSource?,
 	Target: DamageTarget,
 	Tags: { [string]: true }?,
@@ -63,22 +63,22 @@ export type DamageTarget = {
 local DamageTypes = {}
 
 --[=[
-	@prop Kinds {DamageKind}
+	@prop Types {DamageType}
 	@within DamageTypes
-	Ordered list of every valid damage kind.
+	Ordered list of every valid damage type.
 ]=]
-DamageTypes.Kinds = table.freeze({ "Slashing", "Piercing", "Crushing" } :: { DamageKind })
+DamageTypes.Types = table.freeze({ "Slashing", "Piercing", "Crushing" } :: { DamageType })
 
 --[=[
-	@prop KindSet {[string]: true}
+	@prop TypeSet {[string]: true}
 	@within DamageTypes
-	Set form of `Kinds` for O(1) membership checks.
+	Set form of `Types` for O(1) membership checks.
 ]=]
-local kindSet: { [string]: true } = {}
-for _, kind in DamageTypes.Kinds do
-	kindSet[kind] = true
+local typeSet: { [string]: true } = {}
+for _, damageType in DamageTypes.Types do
+	typeSet[damageType] = true
 end
-DamageTypes.KindSet = table.freeze(kindSet)
+DamageTypes.TypeSet = table.freeze(typeSet)
 
 --[=[
 	Returns a new frozen `Damage` with `overrides` applied on top of `damage`. Use this in

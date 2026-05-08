@@ -1,5 +1,6 @@
 local ServerScriptService = game:GetService("ServerScriptService")
 
+local AbilityServer = require(ServerScriptService.Server.Servers.AbilityServer)
 local Cmdr = require(ServerScriptService.ServerPackages.Cmdr)
 local CombatServer = require(ServerScriptService.Server.Servers.CombatServer)
 local DataServer = require(ServerScriptService.Server.Servers.DataServer)
@@ -18,6 +19,7 @@ InventoryServer.Init()
 EquipmentServer.Init()
 SkillServer.Init()
 CombatServer.Init()
+AbilityServer.Init()
 
 for _, component in ServerScriptService.Server.Components:GetChildren() do
 	require(component)

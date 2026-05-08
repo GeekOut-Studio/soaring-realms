@@ -21,6 +21,7 @@ if not (isDevelopmentPlace or RunService:IsStudio()) then
 end
 
 -- initialize the client
+local AbilityClient = require(ReplicatedStorage.Shared.Clients.AbilityClient)
 local DownloadClient = require(ReplicatedStorage.Shared.Clients.DownloadClient)
 local EquipmentClient = require(ReplicatedStorage.Shared.Clients.EquipmentClient)
 local GuiClient = require(ReplicatedStorage.Shared.Clients.GuiClient)
@@ -35,6 +36,7 @@ TeleportClient.Init()
 InventoryClient.Init()
 EquipmentClient.Init()
 SkillClient.Init()
+AbilityClient.Init()
 
 for _, component in ReplicatedStorage.Shared.Components:GetChildren() do
 	require(component)

@@ -5,7 +5,7 @@
 	State factory for melee combat. Pulls its target from the denizen's `CombatSession`
 	(closest hostile alive member, picked sticky — re-evaluated only when the current target
 	dies, leaves the session, or the session ends). Closes to `AttackRange`, faces the
-	target, and applies `AttackDamage` of `AttackKind` damage every `AttackCooldown` seconds
+	target, and applies `AttackDamage` of `AttackType` damage every `AttackCooldown` seconds
 	via `DamageServer`.
 
 	Returns:
@@ -27,7 +27,7 @@ local DamageServer = require(ServerScriptService.Server.Servers.DamageServer)
 local CombatTypes = require(ReplicatedStorage.Shared.Types.CombatTypes)
 local DamageTypes = require(ReplicatedStorage.Shared.Types.DamageTypes)
 
-type DamageKind = DamageTypes.DamageKind
+type DamageType = DamageTypes.DamageType
 
 --[=[
 	@interface Config
@@ -36,7 +36,7 @@ type DamageKind = DamageTypes.DamageKind
 	@field LeashRange number -- Stud distance from `SpawnPosition` past which the denizen disengages and returns.
 	@field AttackCooldown number -- Seconds between successive hits.
 	@field AttackDamage number
-	@field AttackKind DamageKind
+	@field AttackType DamageType
 	@field AttackAnimation string? -- Optional `AnimationDefs` key played on each swing.
 	@field OnTargetLost string -- State to transition to when no hostile alive members remain.
 	@field OnLeashed string -- State to transition to when the current target leaves `LeashRange` from spawn.
@@ -47,7 +47,7 @@ export type Config = {
 	LeashRange: number,
 	AttackCooldown: number,
 	AttackDamage: number,
-	AttackKind: DamageKind,
+	AttackType: DamageType,
 	AttackAnimation: string?,
 	OnTargetLost: string,
 	OnLeashed: string,
@@ -139,7 +139,7 @@ return function(config: Config)
 					end
 					DamageServer.Damage({
 						Amount = config.AttackDamage,
-						Kind = config.AttackKind,
+						Type = config.AttackType,
 						Source = denizen,
 						Target = currentTarget,
 					})

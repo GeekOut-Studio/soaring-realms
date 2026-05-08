@@ -15,6 +15,7 @@ export type ItemDef = {
 	AssetPath: string?, -- nil = no rendered asset. Slash-delimited path under ServerStorage.Assets.
 	Stats: ItemStatsTypes.Stats?, -- nil = no gameplay-class stats. Used to gate and parameterize gathering/combat actions.
 	IdleAnimation: string?, -- nil = no idle pose. Animation name from `AnimationDefs` played on the equipping `Outworlder` while this item is equipped.
+	PrimaryAbility: string?, -- nil = no primary ability. Key into `AbilityDefs` for the ability fired by the player's primary input (M1) while this item is equipped in its weapon-bearing slot.
 }
 
 export type ItemDefs = { [string]: ItemDef }
@@ -38,12 +39,13 @@ local Defs = {
 		EquipSlots = { "MainHandMelee" },
 		AssetPath = "Base/Weapons/SwordCopper",
 		IdleAnimation = "WeaponOneHandedIdle",
+		PrimaryAbility = "MeleeAttack",
 		Stats = {
 			Combat = {
 				Interval = 1,
 				Power = { Min = 6, Max = 9 },
 				Range = 8,
-				DamageKind = "Slashing",
+				DamageType = "Slashing",
 				AttackAnimation = "WeaponOneHandedHorizontalSwing",
 			},
 		},

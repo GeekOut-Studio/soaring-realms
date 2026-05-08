@@ -75,7 +75,7 @@ function DebugDamage:HandleTouched(otherPart: BasePart)
 	end)
 	DamageServer.Damage({
 		Amount = DAMAGE,
-		Kind = "Crushing",
+		Type = "Crushing",
 		Target = outworlder,
 	})
 end

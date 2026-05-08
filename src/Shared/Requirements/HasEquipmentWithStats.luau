@@ -18,6 +18,7 @@ local RequirementsTypes = require(ReplicatedStorage.Shared.Types.RequirementsTyp
 
 local LabelsByClass: { [string]: string } = {
 	Mining = "mining tool",
+	Combat = "weapon",
 }
 
 local HasEquipmentWithStats = {}

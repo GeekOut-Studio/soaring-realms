@@ -41,14 +41,14 @@ export type MiningStats = {
 	@field Interval number -- Seconds between successive attacks.
 	@field Power PowerRange -- Per-swing damage range. One value is rolled per swing and applied to the target.
 	@field Range number -- Stud distance within which a target is considered in reach.
-	@field DamageKind DamageKind -- Damage kind tag passed through `DamageServer`.
+	@field DamageType DamageType -- Damage type tag passed through `DamageServer`.
 	@field AttackAnimation string? -- `AnimationDefs` key played by the wielder on each swing.
 ]=]
 export type CombatStats = {
 	Interval: number,
 	Power: PowerRange,
 	Range: number,
-	DamageKind: DamageTypes.DamageKind,
+	DamageType: DamageTypes.DamageType,
 	AttackAnimation: string?,
 }
 

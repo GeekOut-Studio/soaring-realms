@@ -19,6 +19,16 @@ local acknowledgeSignal
 local cacheFolder
 local downloadPromises: { [string]: any } = {}
 
+local function newDeferred()
+	local resolve, reject
+	local promise = Promise.new(function(res, rej)
+		resolve, reject = res, rej
+	end)
+	return promise, resolve, reject
+end
+
+local readyPromise, resolveReady = newDeferred()
+
 local function waitForLeaf(root: Instance, path: string)
 	local parts = string.split(path, "/")
 	local current = root
@@ -35,6 +45,8 @@ function DownloadClient.Init()
 	cacheFolder = Instance.new("Folder")
 	cacheFolder.Name = "DownloadCache"
 	cacheFolder.Parent = ReplicatedStorage
+
+	resolveReady()
 end
 
 --[=[
@@ -49,6 +61,17 @@ end
 	@return Promise<Instance> -- Resolves with a clone of the downloaded asset.
 ]=]
 function DownloadClient.Download(path: string): any
+	if readyPromise:getStatus() ~= Promise.Status.Resolved then
+		return readyPromise:andThen(function()
+			return DownloadClient.Download(path)
+		end)
+	end
+
+	local cachedWrapper = cacheFolder:FindFirstChild(path)
+	if cachedWrapper ~= nil then
+		return Promise.resolve(cachedWrapper:GetChildren()[1]:Clone())
+	end
+
 	local existing = downloadPromises[path]
 	if existing ~= nil then
 		return existing:andThen(function(asset)
@@ -70,15 +93,18 @@ function DownloadClient.Download(path: string): any
 			waitForLeaf(downloaded, leafPath)
 		end
 
+		local wrapper = Instance.new("Folder")
+		wrapper.Name = path
 		local asset = downloaded:Clone()
-		asset.Parent = cacheFolder
+		asset.Parent = wrapper
+		wrapper.Parent = cacheFolder
 		acknowledgeSignal:Fire(containerName)
 		resolve(asset)
 	end)
 
 	downloadPromises[path] = promise
 
-	promise:catch(function()
+	promise:finally(function()
 		if downloadPromises[path] == promise then
 			downloadPromises[path] = nil
 		end

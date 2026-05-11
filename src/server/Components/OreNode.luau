@@ -58,7 +58,7 @@ type MiningStats = ItemStatsTypes.MiningStats
 
 local BONUS_DURATION = 15
 local RECHARGE_DURATION = 60
-local PROMPT_DISTANCE = 10
+local PROMPT_DISTANCE = 7
 
 --[=[
 	@type State "Normal" | "Bonus" | "Depleted"
@@ -144,6 +144,11 @@ local function pickDrop(drops: Drops): string
 		return drops
 	end
 	return WeightedRandom.Pick(drops).Kind
+end
+
+local function isInRange(outworlder: any, entry: NodeEntry): boolean
+	local position = outworlder:GetCFrame().Position
+	return (position - entry.Root.Position).Magnitude <= PROMPT_DISTANCE
 end
 
 local function findMiningStats(player: Player): MiningStats?
@@ -317,11 +322,15 @@ function OreNode:HandlePromptTriggered(player: Player, entry: NodeEntry)
 end
 
 --[=[
-	Gates entry to the mining action on `self.Def.Requirements`, then constructs
-	the looping action for `player` on the given entry and hands it to their
-	`Outworlder`. Requirements are re-checked at the top of every swing tick:
-	any failure (lost skill buff, filled inventory, unequipped tool, …) ends the
-	action with `Result.Fail` and a notification.
+	Gates entry to the mining action on `self.Def.Requirements` and on the player
+	being within `PROMPT_DISTANCE` of the entry's root, then constructs the
+	looping action for `player` on the given entry and hands it to their
+	`Outworlder`. Requirements and proximity are re-checked at the top of every
+	swing tick: any failure (lost skill buff, filled inventory, unequipped tool,
+	walked out of range, …) ends the action with `Result.Fail` and a
+	notification. Proximity is rechecked server-side rather than relying on the
+	action's `AllowsMovement = false` interrupt because that only catches
+	input-driven movement, not knockback or external displacement.
 
 	The pickaxe's `MiningStats` are re-read every Update tick, so a mid-action
 	tool swap is reflected immediately in both damage (via `OnHit`) and swing
@@ -343,6 +352,10 @@ function OreNode:BeginMining(player: Player, outworlder: any, entry: NodeEntry)
 	local ok, message = RequirementsServer.CheckForPlayer(player, def.Requirements)
 	if not ok then
 		outworlder:NotifyActionFailed(message or "You can't do that right now.")
+		return
+	end
+	if not isInRange(outworlder, entry) then
+		outworlder:NotifyActionFailed("You're too far away.")
 		return
 	end
 	-- The HasEquipmentWithStats("MainHandMelee", "Mining") requirement above
@@ -380,6 +393,10 @@ function OreNode:BeginMining(player: Player, outworlder: any, entry: NodeEntry)
 				local stillOk, stillMessage = RequirementsServer.CheckForPlayer(player, def.Requirements)
 				if not stillOk then
 					outworlder:NotifyActionFailed(stillMessage or "You can't do that right now.")
+					return ActionTypes.Result.Fail
+				end
+				if not isInRange(outworlder, entry) then
+					outworlder:NotifyActionFailed("You're too far away.")
 					return ActionTypes.Result.Fail
 				end
 				node:OnHit(player, entry, currentStats)

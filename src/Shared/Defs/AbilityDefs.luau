@@ -11,10 +11,10 @@ export type AbilityDef = AbilityTypes.AbilityDef
 export type AbilityDefs = { [string]: AbilityDef }
 
 local Defs = {
-	MeleeAttack = {
-		Handler = "SingleTargetMelee",
+	BasicAttackMainHandMelee = {
+		Handler = "BasicAttackWeaponMelee",
 		Config = {
-			Animation = "WeaponOneHandedHorizontalSwing",
+			Slot = "MainHandMelee",
 		},
 		Costs = {},
 		Cooldown = 1.0,
@@ -22,6 +22,16 @@ local Defs = {
 		Requirements = {
 			Requirements.HasEquipmentWithStats("MainHandMelee", "Combat"),
 		},
+		Targeting = { Kind = "None" },
+	},
+
+	DenizenMelee = {
+		Handler = "DenizenMelee",
+		Config = {},
+		Costs = {},
+		Cooldown = 1.0,
+		Requirements = {},
+		Targeting = { Kind = "None" },
 	},
 }
 

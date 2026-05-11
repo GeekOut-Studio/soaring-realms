@@ -1,0 +1,118 @@
+--!strict
+
+--[=[
+	@class BasicAttackWeaponMelee
+	Ability handler for single-target melee attacks by player-style activators
+	(activators that source combat stats from an equipped item slot). Reads the
+	configured slot's `CombatStats` via `activator:GetCombatStats(config.Slot)`,
+	plays the weapon's `AttackAnimation`, then scans the activator's
+	`CombatSession` for the closest hostile alive combatant within `Range` and
+	applies a rolled damage value via `DamageServer`. Activation succeeds
+	(animation plays, cooldown sets) even if no target is in range — you swung,
+	you committed.
+
+	`OnWillCooldown` overrides the def's base cooldown with the equipped weapon's
+	`CombatStats.Interval`, so swing rhythm follows the weapon.
+
+	For denizen-style activators that source stats from their def rather than an
+	equipped slot, see `DenizenMelee`. The two handlers duplicate the
+	pick-closest-hostile + damage logic deliberately; the duplication is small
+	and the alternative (a shared helper) would mostly obscure the per-handler
+	shape.
+]=]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
+
+local DamageServer = require(ServerScriptService.Server.Servers.DamageServer)
+local AbilityTypes = require(ReplicatedStorage.Shared.Types.AbilityTypes)
+local CombatTypes = require(ReplicatedStorage.Shared.Types.CombatTypes)
+local EquipmentTypes = require(ReplicatedStorage.Shared.Types.EquipmentTypes)
+local ItemStatsTypes = require(ReplicatedStorage.Shared.Types.ItemStatsTypes)
+
+type AbilityActivator = AbilityTypes.AbilityActivator
+type Combatant = CombatTypes.Combatant
+type CombatStats = ItemStatsTypes.CombatStats
+
+--[=[
+	@interface Config
+	@within BasicAttackWeaponMelee
+	@field Slot EquipmentSlot -- Which equipment slot to read `CombatStats` from. Players use `"MainHandMelee"` for the primary attack; an off-hand or ranged variant ability would set its own slot here.
+]=]
+type Config = {
+	Slot: EquipmentTypes.EquipmentSlot,
+}
+
+-- The activator passed at the registry boundary is `AbilityActivator`. Each
+-- function casts to `any` internally to call slot-based `GetCombatStats`, since
+-- that method isn't part of the universal activator contract (e.g. Denizen,
+-- which uses its own handler, doesn't have a slot-keyed `GetCombatStats`).
+local function getCombatStats(activator: AbilityActivator, slot: EquipmentTypes.EquipmentSlot): CombatStats?
+	return (activator :: any):GetCombatStats(slot)
+end
+
+local function pickClosestHostile(activator: AbilityActivator, range: number): Combatant?
+	local session = activator.CombatSession
+	if session == nil then
+		return nil
+	end
+	local pos = activator:GetCFrame().Position
+	local rangeSq = range * range
+	local best: Combatant? = nil
+	local bestDistSq = math.huge
+	for member in session.Members do
+		if (member :: any) == activator then
+			continue
+		end
+		if member:GetHealth() <= 0 then
+			continue
+		end
+		if not CombatTypes.IsHostile(activator :: any, member) then
+			continue
+		end
+		local distSq = (member:GetCFrame().Position - pos).Magnitude ^ 2
+		if distSq <= rangeSq and distSq < bestDistSq then
+			best = member
+			bestDistSq = distSq
+		end
+	end
+	return best
+end
+
+local Handler: AbilityTypes.AbilityHandler = {
+	Activate = function(activator: AbilityActivator, config: any, _context: any)
+		local typedConfig = config :: Config
+		local combatStats = getCombatStats(activator, typedConfig.Slot)
+		if combatStats == nil then
+			return
+		end
+
+		if combatStats.AttackAnimation ~= nil then
+			activator:AnimationPlay(combatStats.AttackAnimation)
+		end
+
+		local target = pickClosestHostile(activator, combatStats.Range)
+		if target == nil then
+			return
+		end
+
+		local rolled = combatStats.Power.Min + math.random() * (combatStats.Power.Max - combatStats.Power.Min)
+		DamageServer.Damage({
+			Amount = rolled,
+			Type = combatStats.DamageType,
+			Source = activator :: any,
+			Target = target :: any,
+		})
+	end,
+
+	OnWillCooldown = function(baseCooldown: number, activator: AbilityActivator, config: any, _context: any): number
+		local typedConfig = config :: Config
+		local combatStats = getCombatStats(activator, typedConfig.Slot)
+		if combatStats == nil then
+			return baseCooldown
+		end
+		return combatStats.Interval
+	end,
+}
+
+return Handler

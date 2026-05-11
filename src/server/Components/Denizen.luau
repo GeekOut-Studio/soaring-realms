@@ -36,6 +36,7 @@ local Trove = require(ReplicatedStorage.Packages.Trove)
 local t = require(ReplicatedStorage.Packages.t)
 
 local Behavior = require(ServerScriptService.Server.Behavior.Behavior)
+local AbilityServer = require(ServerScriptService.Server.Servers.AbilityServer)
 local CombatServer = require(ServerScriptService.Server.Servers.CombatServer)
 local InventoryServer = require(ServerScriptService.Server.Servers.InventoryServer)
 local AnimationDefs = require(ReplicatedStorage.Shared.Defs.AnimationDefs)
@@ -235,6 +236,7 @@ end
 
 function Denizen:Stop()
 	CombatServer.Disengage(self)
+	AbilityServer.ResetCooldowns(self)
 	self:AnimationStopHardAll()
 	self.Trove:Destroy()
 end

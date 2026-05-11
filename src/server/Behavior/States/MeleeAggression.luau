@@ -2,42 +2,35 @@
 
 --[=[
 	@class MeleeAggression
-	State factory for melee combat. Pulls its target from the denizen's `CombatSession`
-	(closest hostile alive member, picked sticky — re-evaluated only when the current target
-	dies, leaves the session, or the session ends). Closes to `AttackRange`, faces the
-	target, and applies `AttackDamage` of `AttackType` damage every `AttackCooldown` seconds
-	via `DamageServer`.
+	State factory for melee combat. Pulls its target from the denizen's
+	`CombatSession` (closest hostile alive member, picked sticky —
+	re-evaluated only when the current target dies, leaves the session, or
+	the session ends). Closes to `AttackRange`, faces the target, and asks
+	`AbilityServer` to activate the configured `Ability` each tick once in
+	range. Server-side cooldown gating on the ability throttles the actual
+	swing rhythm; this state just keeps asking.
 
 	Returns:
 	- `OnTargetLost` when no hostile alive members remain in the session (or the session is gone).
 	- `OnLeashed` when the current target's distance from `SpawnPosition` exceeds `LeashRange`.
 
-	Damage is dealt directly here rather than via an Abilities system; revisit when that
-	system lands.
-
-	Writes `denizen.Target` as a projection of the currently-focused combatant for external
-	reads (UI, debugging). Cleared in `Exit`.
+	Writes `denizen.Target` as a projection of the currently-focused combatant
+	for external reads (UI, debugging). Cleared in `Exit`.
 ]=]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 local Targeting = require(ServerScriptService.Server.Behavior.Targeting)
-local DamageServer = require(ServerScriptService.Server.Servers.DamageServer)
+local AbilityServer = require(ServerScriptService.Server.Servers.AbilityServer)
 local CombatTypes = require(ReplicatedStorage.Shared.Types.CombatTypes)
-local DamageTypes = require(ReplicatedStorage.Shared.Types.DamageTypes)
-
-type DamageType = DamageTypes.DamageType
 
 --[=[
 	@interface Config
 	@within MeleeAggression
-	@field AttackRange number -- Stud distance at which the denizen stops to swing.
+	@field AttackRange number -- Stud distance at which the denizen stops to swing. Positioning concern; the actual hit range is the ability's, sourced from the denizen's `CombatStats.Range`.
 	@field LeashRange number -- Stud distance from `SpawnPosition` past which the denizen disengages and returns.
-	@field AttackCooldown number -- Seconds between successive hits.
-	@field AttackDamage number
-	@field AttackType DamageType
-	@field AttackAnimation string? -- Optional `AnimationDefs` key played on each swing.
+	@field Ability string -- `AbilityDefs` key activated each tick once in range. Cooldown gating is server-side via `AbilityServer`.
 	@field OnTargetLost string -- State to transition to when no hostile alive members remain.
 	@field OnLeashed string -- State to transition to when the current target leaves `LeashRange` from spawn.
 ]=]
@@ -45,10 +38,7 @@ export type Config = {
 	Kind: string,
 	AttackRange: number,
 	LeashRange: number,
-	AttackCooldown: number,
-	AttackDamage: number,
-	AttackType: DamageType,
-	AttackAnimation: string?,
+	Ability: string,
 	OnTargetLost: string,
 	OnLeashed: string,
 }
@@ -95,16 +85,14 @@ local function targetStillValid(denizen: any, target: any): boolean
 end
 
 return function(config: Config)
-	local attackTimer = 0
 	local currentTarget: any = nil
 
 	return {
 		Enter = function(denizen: any)
-			attackTimer = 0
 			currentTarget = pickTarget(denizen)
 			denizen.Target = currentTarget
 		end,
-		Update = function(denizen: any, dt: number): string?
+		Update = function(denizen: any, _dt: number): string?
 			if not targetStillValid(denizen, currentTarget) then
 				currentTarget = pickTarget(denizen)
 				denizen.Target = currentTarget
@@ -131,19 +119,7 @@ return function(config: Config)
 				if not toTarget:FuzzyEq(Vector3.zero) then
 					denizen:FaceDirection(Vector3.new(toTarget.X, 0, toTarget.Z).Unit)
 				end
-				attackTimer -= dt
-				if attackTimer <= 0 then
-					attackTimer = config.AttackCooldown
-					if config.AttackAnimation ~= nil then
-						denizen:AnimationPlay(config.AttackAnimation)
-					end
-					DamageServer.Damage({
-						Amount = config.AttackDamage,
-						Type = config.AttackType,
-						Source = denizen,
-						Target = currentTarget,
-					})
-				end
+				AbilityServer.Activate(denizen, config.Ability, nil)
 			end
 			return nil
 		end,

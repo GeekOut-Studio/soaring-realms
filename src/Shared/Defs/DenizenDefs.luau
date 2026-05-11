@@ -12,6 +12,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Sift = require(ReplicatedStorage.Packages.Sift)
 
+local ItemStatsTypes = require(ReplicatedStorage.Shared.Types.ItemStatsTypes)
+
 --[=[
 	@interface Animations
 	@within DenizenDefs
@@ -33,6 +35,7 @@ export type Animations = {
 	@field Animations Animations
 	@field Team string? -- Combat team identifier. `nil` means hostile to everyone. Two teams currently exist: `"Players"` and `"Enemies"`.
 	@field Behavior BehaviorDef? -- Optional FSM definition consumed by the server-side `Behavior` runner. Omit for static denizens.
+	@field CombatStats CombatStats? -- Optional. Per-denizen combat numbers (Interval/Power/Range/DamageType/AttackAnimation) read by ability handlers (e.g. `DenizenMelee`) when the denizen activates an attack ability. Omit for denizens that never attack.
 ]=]
 export type DenizenDef = {
 	Kind: string,
@@ -42,6 +45,7 @@ export type DenizenDef = {
 	Animations: Animations,
 	Team: string?,
 	Behavior: BehaviorDef?,
+	CombatStats: ItemStatsTypes.CombatStats?,
 }
 
 --[=[
@@ -75,6 +79,13 @@ local Defs = {
 			Run = "ImpRun",
 		},
 		Team = "Enemies",
+		CombatStats = {
+			Interval = 1.2,
+			Power = { Min = 8, Max = 8 },
+			Range = 8,
+			DamageType = "Slashing",
+			AttackAnimation = "ImpAttack",
+		},
 		Behavior = {
 			Initial = "Idle",
 			States = {
@@ -87,10 +98,7 @@ local Defs = {
 					Kind = "MeleeAggression",
 					AttackRange = 8,
 					LeashRange = 30,
-					AttackCooldown = 1.2,
-					AttackDamage = 8,
-					AttackType = "Slashing",
-					AttackAnimation = "ImpAttack",
+					Ability = "DenizenMelee",
 					OnTargetLost = "Idle",
 					OnLeashed = "Returning",
 				},

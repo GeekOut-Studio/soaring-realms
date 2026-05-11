@@ -111,7 +111,6 @@ local Handler: AbilityTypes.AbilityHandler = {
 		if combatStats.AttackAnimation ~= nil then
 			activator:AnimationPlay(combatStats.AttackAnimation)
 		end
-
 		local target = pickFromCombatSession(activator, combatStats.Range)
 		if target == nil then
 			target = Targeting.NearestCombatantInWedge(

@@ -109,6 +109,7 @@ function OutworlderClient:Construct()
 	self.HealthProperty = self.Comm:GetProperty("Health")
 	self.ActionProgressProperty = self.Comm:GetProperty("ActionProgress")
 	self.ActionFailedSignal = self.Comm:GetSignal("ActionFailed")
+	self.FaceTowardsSignal = self.Comm:GetSignal("FaceTowards")
 	self.RequestSetMovementModeFunction = self.Comm:GetFunction("RequestSetMovementMode")
 end
 
@@ -213,6 +214,10 @@ function OutworlderClient:SetupLocalControls()
 		self.ActionProgressChanged:Fire(progress)
 	end))
 
+	self.Trove:Add(self.FaceTowardsSignal:Connect(function(targetPoint: Vector3)
+		self:ApplyFaceTowards(targetPoint)
+	end))
+
 	self.Trove:Connect(UserInputService.InputBegan, function(input: InputObject, processed: boolean)
 		if processed then
 			return
@@ -223,6 +228,27 @@ function OutworlderClient:SetupLocalControls()
 	self.Trove:Connect(RunService.Heartbeat, function(dt: number)
 		self:SprintTick(dt)
 	end)
+end
+
+--[=[
+	Pivots the local character to face `targetPoint` on the horizontal plane.
+	Driven by the `FaceTowards` Comm signal from the server-side `Outworlder`,
+	which delegates orientation to us to avoid mid-movement snap-backs against
+	the client's position prediction.
+	@within OutworlderClient
+	@param targetPoint Vector3
+]=]
+function OutworlderClient:ApplyFaceTowards(targetPoint: Vector3)
+	local primary = self.Instance.PrimaryPart
+	if primary == nil then
+		return
+	end
+	local currentPosition = primary.Position
+	local delta = (targetPoint - currentPosition) * Vector3.new(1, 0, 1)
+	if delta:FuzzyEq(Vector3.zero) then
+		return
+	end
+	self.Instance:PivotTo(CFrame.lookAlong(currentPosition, delta))
 end
 
 --[=[

@@ -39,6 +39,16 @@ type CombatStats = ItemStatsTypes.CombatStats
 
 local WAIT_FOR_CHILD_TIMEOUT = 10
 
+-- Maximum stud-distance between a client's claimed CFrame and the server's
+-- authoritative position before `SetClientCFrame` rejects the update.
+-- Absorbs normal latency drift (sprint × RTT is a few studs) while flagging
+-- teleport-class exploits.
+local CLIENT_CFRAME_SANITY_RADIUS = 16
+-- How long a `ClientCFrame` stays valid after its timestamp. `GetCFrame`
+-- returns the client claim only inside this window; older claims expire and
+-- `GetCFrame` falls back to `PrimaryPart.CFrame`.
+local CLIENT_CFRAME_FRESHNESS_SECONDS = 0.5
+
 local Outworlder = Component.new({
 	Tag = "Outworlder",
 	Ancestors = { Workspace },
@@ -131,8 +141,11 @@ function Outworlder:Construct()
 	self.InCombatProperty = self.Comm:CreateProperty("InCombat", false)
 	self.ActionProgressProperty = self.Comm:CreateProperty("ActionProgress", nil)
 	self.ActionFailedSignal = self.Comm:CreateSignal("ActionFailed")
+	self.FaceTowardsSignal = self.Comm:CreateSignal("FaceTowards")
 
 	self.CombatSession = nil :: CombatSession?
+	self.ClientCFrame = nil :: CFrame?
+	self.ClientCFrameTimestamp = 0
 
 	self.MovementMode = MovementTypes.DefaultMode :: MovementMode
 	self.Stamina = self.MaxStamina
@@ -195,17 +208,54 @@ function Outworlder:GetTeam(): string?
 end
 
 --[=[
-	Returns the character's `PrimaryPart` CFrame (position + facing). Implements
-	the `Combatant` interface. Anchored to `PrimaryPart` rather than the model
-	pivot so cross-rig spatial queries stay consistent — e.g. a player R15
-	pivot is roughly waist-height while a custom denizen's pivot might be at
-	the feet, but each rig's `PrimaryPart` sits at the assembly's intended
-	center.
+	Returns the "best-known" CFrame for the character right now:
+
+	- If a recent `SetClientCFrame` call left a fresh client claim (within
+	  `CLIENT_CFRAME_FRESHNESS_SECONDS`), returns that. Lets handlers and
+	  spatial queries see the player's ahead-of-replication position
+	  whenever a server pipeline has handed us a client snapshot recently.
+	- Otherwise returns the authoritative `PrimaryPart.CFrame`. Stale claims
+	  silently expire — readers outside an activity window get the server's
+	  truth.
+
+	`PrimaryPart`-anchored (rather than model-pivot) so cross-rig spatial
+	queries stay consistent — e.g. a player R15 pivot is roughly waist-height
+	while a custom denizen's pivot might be at the feet, but each rig's
+	`PrimaryPart` sits at the assembly's intended center.
 	@within Outworlder
 	@return CFrame
 ]=]
 function Outworlder:GetCFrame(): CFrame
+	if self.ClientCFrame ~= nil and os.clock() - self.ClientCFrameTimestamp <= CLIENT_CFRAME_FRESHNESS_SECONDS then
+		return self.ClientCFrame
+	end
 	return (self.Instance.PrimaryPart :: BasePart).CFrame
+end
+
+--[=[
+	Records `cframe` as the client's claimed character CFrame, stamping it
+	with `os.clock()` so `GetCFrame` will return it for the next
+	`CLIENT_CFRAME_FRESHNESS_SECONDS`. Server pipelines (ability activation,
+	future UI-driven actions, etc.) that receive a client CFrame in their
+	wire payload call this to keep the Outworlder's state current.
+
+	Validates the claim against the server-authoritative `PrimaryPart.CFrame`
+	and silently rejects on drift greater than `CLIENT_CFRAME_SANITY_RADIUS`.
+	A returned `false` lets the caller log or refuse to dispatch the action
+	if it cares; otherwise it's fire-and-forget — the next valid update will
+	supersede.
+	@within Outworlder
+	@param cframe CFrame
+	@return boolean -- `true` if accepted, `false` if rejected for excessive drift.
+]=]
+function Outworlder:SetClientCFrame(cframe: CFrame): boolean
+	local serverPos = (self.Instance.PrimaryPart :: BasePart).Position
+	if (cframe.Position - serverPos).Magnitude > CLIENT_CFRAME_SANITY_RADIUS then
+		return false
+	end
+	self.ClientCFrame = cframe
+	self.ClientCFrameTimestamp = os.clock()
+	return true
 end
 
 --[=[
@@ -341,20 +391,21 @@ function Outworlder:NotifyActionFailed(message: string)
 end
 
 --[=[
-	Pivots the character to face `targetPoint` on the horizontal plane. Vertical
-	component of the delta is discarded so the character stays upright. No-ops when
-	the flat delta is approximately zero (avoids producing a `NaN` look-direction
-	when the target is directly above/below or coincident with the character).
+	Requests the owning client to pivot the character to face `targetPoint` on
+	the horizontal plane. Fires the `FaceTowards` Comm signal to `self.Player`
+	only; `OutworlderClient` applies the orientation locally.
+
+	Why client-side: the server's authoritative position lags the client by the
+	round-trip latency. Running `PivotTo` server-side during movement produced
+	visible snap-backs as the client predicted-position and server-position
+	briefly fought. We trust the client to honor the request; the worst-case
+	cheat is "I'm facing a slightly different way than you think I am," which
+	is bounded by the same trust we already grant for movement.
 	@within Outworlder
 	@param targetPoint Vector3
 ]=]
 function Outworlder:FaceTowards(targetPoint: Vector3)
-	local currentPosition = self:GetCFrame().Position
-	local delta = (targetPoint - currentPosition) * Vector3.new(1, 0, 1)
-	if delta:FuzzyEq(Vector3.zero) then
-		return
-	end
-	self.Instance:PivotTo(CFrame.lookAlong(currentPosition, delta))
+	self.FaceTowardsSignal:Fire(self.Player, targetPoint)
 end
 
 --[=[

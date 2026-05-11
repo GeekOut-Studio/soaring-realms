@@ -42,6 +42,14 @@ local HANDLERS: { [string]: AbilityTypes.AbilityHandler } = {
 
 local AbilityServer = {}
 
+-- Wire-input shape for the client-side `Activate` call. Permissive (allows
+-- unknown fields) since `context` is a per-handler payload that grows as new
+-- handlers land. The shared fields (currently `ActivatorCFrame`) live here so
+-- the Comm boundary can validate them once for all handlers.
+local contextCheck = t.optional(t.interface({
+	ActivatorCFrame = t.optional(t.CFrame),
+}))
+
 local cooldownsByActivator: { [any]: { [string]: number } } = {}
 local cooldownsProperty
 
@@ -179,7 +187,7 @@ function AbilityServer.Init()
 	local serverComm = Comm.ServerComm.new(ReplicatedStorage, "Ability")
 	cooldownsProperty = serverComm:CreateProperty("Cooldowns", {})
 
-	serverComm:BindFunction("Activate", function(player: Player, abilityKind: any)
+	serverComm:BindFunction("Activate", function(player: Player, abilityKind: any, context: any)
 		if not t.string(abilityKind) then
 			return false, "Bad ability kind."
 		end
@@ -192,7 +200,19 @@ function AbilityServer.Init()
 			return false, "Character not ready."
 		end
 
-		local success, reason = AbilityServer.Activate(outworlder, abilityKind, nil)
+		-- Untrusted wire input. Validate shape, then hand any client-claimed
+		-- CFrame to the Outworlder, which owns the sanity-check + freshness
+		-- lifecycle on its `ClientCFrame`. Other context fields are passed
+		-- through unchecked; per-handler validation lives in the handler.
+		local contextOk, contextErr = contextCheck(context)
+		if not contextOk then
+			return false, `Bad context: {contextErr}`
+		end
+		if context ~= nil and context.ActivatorCFrame ~= nil then
+			outworlder:SetClientCFrame(context.ActivatorCFrame)
+		end
+
+		local success, reason = AbilityServer.Activate(outworlder, abilityKind, context)
 		return success, reason or ""
 	end)
 

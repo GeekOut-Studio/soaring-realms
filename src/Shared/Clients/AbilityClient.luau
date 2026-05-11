@@ -11,6 +11,7 @@
 	`expiresAt - GetServerTimeNow()` produces the remaining cooldown directly.
 ]=]
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
@@ -31,12 +32,32 @@ end
 	Asks the server to activate `abilityKind` for the local player. Server is
 	authoritative for requirements / costs / cooldown; this is fire-and-forget
 	from the client's perspective.
+
+	`context` is the per-handler activation payload. Callers populate
+	handler-specific fields (e.g. a `GroundPoint` for a place-instance
+	ability); they do *not* need to attach the player's CFrame manually — this
+	function auto-attaches `ActivatorCFrame = LocalPlayer.Character.PrimaryPart.CFrame`
+	when present, which the server hands to `Outworlder:SetClientCFrame` to
+	keep `outworlder:GetCFrame()` returning the ahead-of-replication position
+	for the next freshness window.
 	@within AbilityClient
 	@param abilityKind string
+	@param context any?
 	@return (boolean, string) -- ok, message ("" on success).
 ]=]
-function AbilityClient.Activate(abilityKind: string): (boolean, string)
-	return activateFunction(abilityKind)
+function AbilityClient.Activate(abilityKind: string, context: any?): (boolean, string)
+	local outgoing = context
+	local character = Players.LocalPlayer.Character
+	local primary = if character ~= nil then character.PrimaryPart else nil
+	if primary ~= nil then
+		if outgoing == nil then
+			outgoing = { ActivatorCFrame = primary.CFrame }
+		elseif outgoing.ActivatorCFrame == nil then
+			outgoing = table.clone(outgoing)
+			outgoing.ActivatorCFrame = primary.CFrame
+		end
+	end
+	return activateFunction(abilityKind, outgoing)
 end
 
 --[=[

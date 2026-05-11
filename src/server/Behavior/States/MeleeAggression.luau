@@ -21,7 +21,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
-local Targeting = require(ServerScriptService.Server.Behavior.Targeting)
+local Targeting = require(ServerScriptService.Server.Targeting)
 local AbilityServer = require(ServerScriptService.Server.Servers.AbilityServer)
 local CombatTypes = require(ReplicatedStorage.Shared.Types.CombatTypes)
 
@@ -48,7 +48,7 @@ local function pickTarget(denizen: any): any?
 	if session == nil then
 		return nil
 	end
-	local pos = denizen.Instance:GetPivot().Position
+	local pos = denizen:GetCFrame().Position
 	local closest = nil
 	local closestDistSq = math.huge
 	for member in session.Members do
@@ -102,10 +102,10 @@ return function(config: Config)
 				return config.OnTargetLost
 			end
 
-			local pos = denizen.Instance:GetPivot().Position
+			local pos = denizen:GetCFrame().Position
 			local targetPos = currentTarget:GetCFrame().Position
 
-			if not Targeting.WithinCylinder(targetPos, denizen.SpawnPosition, config.LeashRange) then
+			if not Targeting.IsPointInCylinder(targetPos, denizen.SpawnPosition, config.LeashRange) then
 				return config.OnLeashed
 			end
 

@@ -35,6 +35,11 @@ local COMBAT_TIMEOUT = 6
 local TICK_INTERVAL = 0.1
 
 local sessions: { [CombatSession]: true } = {}
+-- Registry of every live combatant on the server, regardless of combat state.
+-- Populated by combatant components (Outworlder, Denizen) on construction.
+-- Used by `FindForwardHostile` and other "scan the world for combat-eligible
+-- targets" queries that need to consider participants outside any session.
+local combatants: { [Combatant]: true } = {}
 local accumulator = 0
 local started = false
 
@@ -177,6 +182,63 @@ function CombatServer.Disengage(combatant: any)
 	c.CombatSession = nil
 	if not hasOpposedAlivePair(session) then
 		endSession(session)
+	end
+end
+
+--[=[
+	Registers `combatant` as a live participant in the world. Called by
+	combatant components on construction. Tracked separately from session
+	membership — a registered combatant may or may not currently be in a
+	session.
+
+	Returns a cleanup function that unregisters the combatant and disengages
+	it from any current session. Designed for `Trove:Add` so the caller's
+	lifecycle owns the cleanup:
+
+	```lua
+	self.Trove:Add(CombatServer.RegisterCombatant(self))
+	```
+
+	The returned function is idempotent — calling it after the first time (or
+	having Trove call it a second time) is a no-op.
+	@within CombatServer
+	@param combatant Combatant
+	@return () -> () -- Cleanup; unregisters and disengages `combatant`.
+]=]
+function CombatServer.RegisterCombatant(combatant: Combatant): () -> ()
+	combatants[combatant] = true
+	return function()
+		CombatServer.UnregisterCombatant(combatant)
+	end
+end
+
+--[=[
+	Unregisters `combatant` from the live-participants registry AND disengages
+	it from its current session, if any. Equivalent to invoking the cleanup
+	closure returned by `RegisterCombatant`. Exists for external callers that
+	need by-reference removal (e.g. an admin command) and as the shared
+	implementation behind the cleanup closure. Idempotent.
+	@within CombatServer
+	@param combatant Combatant
+]=]
+function CombatServer.UnregisterCombatant(combatant: Combatant)
+	CombatServer.Disengage(combatant)
+	combatants[combatant] = nil
+end
+
+--[=[
+	Returns an iterator over the live-combatant registry. Each iteration yields
+	a `Combatant`. Spatial queries (see `Targeting.luau`) consume this iterator
+	to filter and rank candidates without CombatServer having to host the
+	query family itself.
+	@within CombatServer
+	@return () -> Combatant?
+]=]
+function CombatServer.GetCombatants(): () -> Combatant?
+	local key: Combatant? = nil
+	return function(): Combatant?
+		key = (next(combatants, key))
+		return key
 	end
 end
 

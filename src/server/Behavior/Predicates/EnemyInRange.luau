@@ -26,7 +26,7 @@ export type Args = {
 }
 
 return function(denizen: any, args: Args): boolean
-	local pos = denizen.Instance:GetPivot().Position
+	local pos = denizen:GetCFrame().Position
 	local rangeSq = args.Range * args.Range
 
 	local closest = nil
@@ -35,7 +35,7 @@ return function(denizen: any, args: Args): boolean
 		if outworlder:GetHealth() <= 0 then
 			continue
 		end
-		local distSq = (outworlder.Instance:GetPivot().Position - pos).Magnitude ^ 2
+		local distSq = (outworlder:GetCFrame().Position - pos).Magnitude ^ 2
 		if distSq <= rangeSq and distSq < closestDistSq then
 			closest = outworlder
 			closestDistSq = distSq

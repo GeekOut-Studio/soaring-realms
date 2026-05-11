@@ -24,11 +24,11 @@ export type Config = {
 local function threatPosition(denizen: any): Vector3?
 	local attacker = denizen.LastAttacker
 	if attacker ~= nil then
-		return attacker.Instance:GetPivot().Position
+		return attacker:GetCFrame().Position
 	end
 	local target = denizen.Target
 	if target ~= nil then
-		return target.Instance:GetPivot().Position
+		return target:GetCFrame().Position
 	end
 	return nil
 end
@@ -46,7 +46,7 @@ return function(config: Config)
 				return nil
 			end
 
-			local pos = denizen.Instance:GetPivot().Position
+			local pos = denizen:GetCFrame().Position
 			local threat = threatPosition(denizen)
 			local awayDir: Vector3
 			if threat ~= nil then

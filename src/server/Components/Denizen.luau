@@ -175,7 +175,7 @@ function Denizen:Construct()
 	self.FacingTarget = nil :: Vector3?
 	self.ControllerManager = nil :: ControllerManager?
 
-	self.SpawnPosition = self.Instance:GetPivot().Position
+	self.SpawnPosition = primary.Position
 	self.LastDamagedTime = nil :: number?
 	self.LastAttacker = nil :: any?
 	self.Target = nil :: any?
@@ -195,6 +195,7 @@ function Denizen:Start()
 	if idle ~= nil then
 		self:AnimationPlay(idle)
 	end
+	self.Trove:Add(CombatServer.RegisterCombatant(self))
 end
 
 --[=[
@@ -235,7 +236,6 @@ function Denizen:SetUpController()
 end
 
 function Denizen:Stop()
-	CombatServer.Disengage(self)
 	AbilityServer.ResetCooldowns(self)
 	self:AnimationStopHardAll()
 	self.Trove:Destroy()
@@ -252,13 +252,16 @@ function Denizen:GetTeam(): string?
 end
 
 --[=[
-	Returns the denizen's pivot CFrame (position + facing). Implements the `Combatant`
-	interface for combat-system range and direction checks.
+	Returns the denizen's `PrimaryPart` CFrame (position + facing). Implements
+	the `Combatant` interface. Anchored to `PrimaryPart` rather than the model
+	pivot so cross-rig spatial queries stay consistent — a Denizen model's
+	pivot is often at its feet, while its `PrimaryPart` (asserted at
+	`Construct`) sits at the assembly's intended center.
 	@within Denizen
 	@return CFrame
 ]=]
 function Denizen:GetCFrame(): CFrame
-	return self.Instance:GetPivot()
+	return (self.Instance.PrimaryPart :: BasePart).CFrame
 end
 
 --[=[
@@ -279,6 +282,23 @@ end
 ]=]
 function Denizen:FaceDirection(direction: Vector3?)
 	self.FacingTarget = direction
+end
+
+--[=[
+	Pivots the denizen to face `point` on the horizontal plane via the
+	`ControllerManager` (no Humanoid in the way, unlike `Outworlder:FaceTowards`).
+	Vertical component is discarded so the body stays upright. No-ops when the
+	flat delta is approximately zero.
+	@within Denizen
+	@param point Vector3
+]=]
+function Denizen:FaceTowards(point: Vector3)
+	local currentPosition = self:GetCFrame().Position
+	local delta = (point - currentPosition) * Vector3.new(1, 0, 1)
+	if delta:FuzzyEq(Vector3.zero) then
+		return
+	end
+	self:FaceDirection(delta.Unit)
 end
 
 --[=[
@@ -305,7 +325,7 @@ function Denizen:HeartbeatUpdate(dt: number)
 
 	local target = self.MoveTarget
 	if target ~= nil then
-		local position = self.Instance:GetPivot().Position
+		local position = self:GetCFrame().Position
 		local dx = target.X - position.X
 		local dz = target.Z - position.Z
 		if dx * dx + dz * dz < ARRIVAL_THRESHOLD * ARRIVAL_THRESHOLD then

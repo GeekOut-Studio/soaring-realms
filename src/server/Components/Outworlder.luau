@@ -157,6 +157,8 @@ function Outworlder:Construct()
 		self.EquipmentProperty:Set(equipment)
 		self:UpdateEquipmentIdleAnimations(equipment)
 	end))
+
+	self.Trove:Add(CombatServer.RegisterCombatant(self))
 end
 
 function Outworlder:Start()
@@ -179,7 +181,6 @@ function Outworlder:Stop()
 		self.CurrentAction:Stop("Interrupted")
 		self.CurrentAction = nil
 	end
-	CombatServer.Disengage(self)
 	self:AnimationStopHardAll()
 	self.Trove:Destroy()
 end
@@ -194,13 +195,17 @@ function Outworlder:GetTeam(): string?
 end
 
 --[=[
-	Returns the character's pivot CFrame (position + facing). Implements the `Combatant`
-	interface for combat-system range and direction checks.
+	Returns the character's `PrimaryPart` CFrame (position + facing). Implements
+	the `Combatant` interface. Anchored to `PrimaryPart` rather than the model
+	pivot so cross-rig spatial queries stay consistent — e.g. a player R15
+	pivot is roughly waist-height while a custom denizen's pivot might be at
+	the feet, but each rig's `PrimaryPart` sits at the assembly's intended
+	center.
 	@within Outworlder
 	@return CFrame
 ]=]
 function Outworlder:GetCFrame(): CFrame
-	return self.Instance:GetPivot()
+	return (self.Instance.PrimaryPart :: BasePart).CFrame
 end
 
 --[=[
@@ -344,7 +349,7 @@ end
 	@param targetPoint Vector3
 ]=]
 function Outworlder:FaceTowards(targetPoint: Vector3)
-	local currentPosition = self.Instance:GetPivot().Position
+	local currentPosition = self:GetCFrame().Position
 	local delta = (targetPoint - currentPosition) * Vector3.new(1, 0, 1)
 	if delta:FuzzyEq(Vector3.zero) then
 		return

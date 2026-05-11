@@ -24,6 +24,7 @@ local Requirements = require(ReplicatedStorage.Shared.Requirements.Requirements)
 	@field GetHealth (AbilityActivator) -> number -- Current health; `<= 0` means dead.
 	@field CombatSession CombatSession? -- Current combat session; `nil` when out of combat.
 	@field AnimationPlay (AbilityActivator, kind: string) -> () -- Plays the named animation on the activator.
+	@field FaceTowards (AbilityActivator, point: Vector3) -> () -- Pivots the activator to face `point` horizontally. Implementation differs by rig (Outworlder uses `PivotTo`; Denizen uses `ControllerManager.FacingDirection`).
 
 	The minimal contract a handler can rely on. Handler-specific accessors
 	(e.g. `Outworlder:GetCombatStats(slot)`) are intentionally **not** part of
@@ -36,6 +37,7 @@ export type AbilityActivator = {
 	GetHealth: (AbilityActivator) -> number,
 	CombatSession: CombatTypes.CombatSession?,
 	AnimationPlay: (AbilityActivator, kind: string) -> (),
+	FaceTowards: (AbilityActivator, point: Vector3) -> (),
 }
 
 --[=[

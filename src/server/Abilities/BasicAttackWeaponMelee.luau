@@ -5,14 +5,24 @@
 	Ability handler for single-target melee attacks by player-style activators
 	(activators that source combat stats from an equipped item slot). Reads the
 	configured slot's `CombatStats` via `activator:GetCombatStats(config.Slot)`,
-	plays the weapon's `AttackAnimation`, then scans the activator's
-	`CombatSession` for the closest hostile alive combatant within `Range` and
-	applies a rolled damage value via `DamageServer`. Activation succeeds
-	(animation plays, cooldown sets) even if no target is in range — you swung,
-	you committed.
+	plays the weapon's `AttackAnimation`, picks a target, faces the activator
+	toward it, then applies a rolled damage value via `DamageServer`. Activation
+	succeeds (animation plays, cooldown sets) even if no target is found — you
+	swung, you committed.
 
-	`OnWillCooldown` overrides the def's base cooldown with the equipped weapon's
-	`CombatStats.Interval`, so swing rhythm follows the weapon.
+	Target selection runs in two passes:
+
+	1. **In combat** — the closest hostile alive member of the activator's
+	   `CombatSession` within `Range`.
+	2. **Out of combat** — `Targeting.NearestCombatantInWedge` scans the live
+	   combatant registry for the closest hostile alive combatant within a
+	   forward wedge (planar reach + total opening angle + vertical extrusion).
+	   Lets a player run up and click an enemy to initiate combat; the damage
+	   event triggers `CombatServer.Engage` automatically via the damage
+	   pipeline.
+
+	`OnWillCooldown` overrides the def's base cooldown with the equipped
+	weapon's `CombatStats.Interval`, so swing rhythm follows the weapon.
 
 	For denizen-style activators that source stats from their def rather than an
 	equipped slot, see `DenizenMelee`. The two handlers duplicate the
@@ -25,6 +35,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 local DamageServer = require(ServerScriptService.Server.Servers.DamageServer)
+local Targeting = require(ServerScriptService.Server.Targeting)
 local AbilityTypes = require(ReplicatedStorage.Shared.Types.AbilityTypes)
 local CombatTypes = require(ReplicatedStorage.Shared.Types.CombatTypes)
 local EquipmentTypes = require(ReplicatedStorage.Shared.Types.EquipmentTypes)
@@ -43,6 +54,16 @@ type Config = {
 	Slot: EquipmentTypes.EquipmentSlot,
 }
 
+-- 90° total forward arc (±45° around the look vector). Tight enough that
+-- the player has to roughly aim; loose enough to forgive a small miss.
+local FORWARD_ARC_ANGLE = math.rad(90)
+-- Total vertical extrusion of the swing-detection wedge, in studs (±half
+-- around the activator's pivot). Generous because pivot Y varies between
+-- rigs by several studs (e.g. an R15 player vs a short Denizen on the
+-- same floor have ~5 studs of pivot disparity); ±6 here absorbs that plus
+-- hops and small terrain differences. Targets on rooftops still excluded.
+local WEDGE_HEIGHT = 8
+
 -- The activator passed at the registry boundary is `AbilityActivator`. Each
 -- function casts to `any` internally to call slot-based `GetCombatStats`, since
 -- that method isn't part of the universal activator contract (e.g. Denizen,
@@ -51,7 +72,7 @@ local function getCombatStats(activator: AbilityActivator, slot: EquipmentTypes.
 	return (activator :: any):GetCombatStats(slot)
 end
 
-local function pickClosestHostile(activator: AbilityActivator, range: number): Combatant?
+local function pickFromCombatSession(activator: AbilityActivator, range: number): Combatant?
 	local session = activator.CombatSession
 	if session == nil then
 		return nil
@@ -91,10 +112,21 @@ local Handler: AbilityTypes.AbilityHandler = {
 			activator:AnimationPlay(combatStats.AttackAnimation)
 		end
 
-		local target = pickClosestHostile(activator, combatStats.Range)
+		local target = pickFromCombatSession(activator, combatStats.Range)
+		if target == nil then
+			target = Targeting.NearestCombatantInWedge(
+				activator:GetCFrame(),
+				combatStats.Range,
+				WEDGE_HEIGHT,
+				FORWARD_ARC_ANGLE,
+				Targeting.HostileTo(activator :: any)
+			)
+		end
 		if target == nil then
 			return
 		end
+
+		activator:FaceTowards(target:GetCFrame().Position)
 
 		local rolled = combatStats.Power.Min + math.random() * (combatStats.Power.Max - combatStats.Power.Min)
 		DamageServer.Damage({

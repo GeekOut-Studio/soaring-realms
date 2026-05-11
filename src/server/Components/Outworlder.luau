@@ -22,6 +22,7 @@ local EquipmentServer = require(ServerScriptService.Server.Servers.EquipmentServ
 local ActionTypes = require(ReplicatedStorage.Shared.Types.ActionTypes)
 local AnimationDefs = require(ReplicatedStorage.Shared.Defs.AnimationDefs)
 local CombatTypes = require(ReplicatedStorage.Shared.Types.CombatTypes)
+local AbilityTypes = require(ReplicatedStorage.Shared.Types.AbilityTypes)
 local EquipmentTypes = require(ReplicatedStorage.Shared.Types.EquipmentTypes)
 local HealthTypes = require(ReplicatedStorage.Shared.Types.HealthTypes)
 local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
@@ -233,6 +234,20 @@ function Outworlder:GetCFrame(): CFrame
 end
 
 --[=[
+	Returns the outworlder's root `BasePart` (its `PrimaryPart`). Satisfies the
+	`AbilityActivator.GetRoot` contract. Unlike `GetCFrame`, this does not
+	consult the client-CFrame freshness layer — callers that want a recent
+	client position should read `GetCFrame()`; callers that want the actual
+	part (e.g. to attach a constraint, read assembly velocity, set network
+	owner) want the authoritative instance.
+	@within Outworlder
+	@return BasePart
+]=]
+function Outworlder:GetRoot(): BasePart
+	return self.Instance.PrimaryPart :: BasePart
+end
+
+--[=[
 	Records `cframe` as the client's claimed character CFrame, stamping it
 	with `os.clock()` so `GetCFrame` will return it for the next
 	`CLIENT_CFRAME_FRESHNESS_SECONDS`. Server pipelines (ability activation,
@@ -391,9 +406,19 @@ function Outworlder:NotifyActionFailed(message: string)
 end
 
 --[=[
-	Requests the owning client to pivot the character to face `targetPoint` on
+	Requests the owning client to pivot the character to face `target` on
 	the horizontal plane. Fires the `FaceTowards` Comm signal to `self.Player`
 	only; `OutworlderClient` applies the orientation locally.
+
+	`target` may be a `Vector3` (fixed world point), a `BasePart` (uses
+	`.Position`), or any other `PVInstance` (uses `:GetPivot().Position`).
+	When `duration` is `nil` the client snaps once via `PivotTo`. When
+	`duration` is provided the client disables `Humanoid.AutoRotate` and drives
+	`ControllerManager.FacingDirection` toward the target every frame for the
+	duration, then restores `AutoRotate`; dynamic targets are re-read each
+	frame so the activator tracks a moving instance. A new `FaceTowards` call
+	while a loop is active cancels the previous loop in favor of the more
+	recent one.
 
 	Why client-side: the server's authoritative position lags the client by the
 	round-trip latency. Running `PivotTo` server-side during movement produced
@@ -402,10 +427,11 @@ end
 	cheat is "I'm facing a slightly different way than you think I am," which
 	is bounded by the same trust we already grant for movement.
 	@within Outworlder
-	@param targetPoint Vector3
+	@param target AbilityTypes.FaceTarget
+	@param duration number? -- When set, hold the facing for this many seconds.
 ]=]
-function Outworlder:FaceTowards(targetPoint: Vector3)
-	self.FaceTowardsSignal:Fire(self.Player, targetPoint)
+function Outworlder:FaceTowards(target: AbilityTypes.FaceTarget, duration: number?)
+	self.FaceTowardsSignal:Fire(self.Player, target, duration)
 end
 
 --[=[
@@ -461,12 +487,16 @@ end
 --[=[
 	Plays the animation identified by `kind`, loading it on first use. Any extra
 	arguments are forwarded to `AnimationTrack:Play` (e.g. `fadeTime`, `weight`,
-	`speed`).
+	`speed`). Returns the underlying `AnimationTrack` so callers can read e.g.
+	`Length` for timing decisions.
 	@within Outworlder
 	@param kind string
+	@return AnimationTrack
 ]=]
-function Outworlder:AnimationPlay(kind: string, ...: any)
-	getOrLoadTrack(self, kind):Play(...)
+function Outworlder:AnimationPlay(kind: string, ...: any): AnimationTrack
+	local track = getOrLoadTrack(self, kind)
+	track:Play(...)
+	return track
 end
 
 --[=[

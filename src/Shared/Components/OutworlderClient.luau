@@ -24,6 +24,7 @@ local Signal = require(ReplicatedStorage.Packages.Signal)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local AbilityClient = require(ReplicatedStorage.Shared.Clients.AbilityClient)
+local AbilityTypes = require(ReplicatedStorage.Shared.Types.AbilityTypes)
 local DownloadClient = require(ReplicatedStorage.Shared.Clients.DownloadClient)
 local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
 local ActionTypes = require(ReplicatedStorage.Shared.Types.ActionTypes)
@@ -98,6 +99,7 @@ function OutworlderClient:Construct()
 	self.ActionProgress = nil :: ActionProgress?
 	self.ActionProgressChanged = self.Trove:Construct(Signal) :: Signal.Signal<ActionProgress?>
 	self.WasMoving = false
+	self.FaceTowardsLoopTrove = nil :: any
 
 	self.Comm = Comm.ClientComm.new(self.Instance, false, "Outworlder")
 	self.Trove:Add(self.Comm)
@@ -214,8 +216,8 @@ function OutworlderClient:SetupLocalControls()
 		self.ActionProgressChanged:Fire(progress)
 	end))
 
-	self.Trove:Add(self.FaceTowardsSignal:Connect(function(targetPoint: Vector3)
-		self:ApplyFaceTowards(targetPoint)
+	self.Trove:Add(self.FaceTowardsSignal:Connect(function(target: AbilityTypes.FaceTarget, duration: number?)
+		self:ApplyFaceTowards(target, duration)
 	end))
 
 	self.Trove:Connect(UserInputService.InputBegan, function(input: InputObject, processed: boolean)
@@ -231,24 +233,74 @@ function OutworlderClient:SetupLocalControls()
 end
 
 --[=[
-	Pivots the local character to face `targetPoint` on the horizontal plane.
-	Driven by the `FaceTowards` Comm signal from the server-side `Outworlder`,
-	which delegates orientation to us to avoid mid-movement snap-backs against
-	the client's position prediction.
+	Pivots the local character to face `target` on the horizontal plane. Driven
+	by the `FaceTowards` Comm signal from the server-side `Outworlder`, which
+	delegates orientation to us to avoid mid-movement snap-backs against the
+	client's position prediction.
+
+	`target` is resolved via `AbilityTypes.ResolveFaceTarget` (see that module for accepted
+	input shapes). With `duration == nil`, snaps once via `PivotTo`. With a
+	duration, disables `Humanoid.AutoRotate` and drives
+	`ControllerManager.FacingDirection` toward the target every Heartbeat for
+	`duration` seconds — re-resolving dynamic targets each frame so the
+	activator tracks movement — then restores `AutoRotate`. A second call while
+	a loop is already running cancels the previous one in favor of the new
+	request.
 	@within OutworlderClient
-	@param targetPoint Vector3
+	@param target AbilityTypes.FaceTarget
+	@param duration number?
 ]=]
-function OutworlderClient:ApplyFaceTowards(targetPoint: Vector3)
+function OutworlderClient:ApplyFaceTowards(target: AbilityTypes.FaceTarget, duration: number?)
 	local primary = self.Instance.PrimaryPart
 	if primary == nil then
 		return
 	end
-	local currentPosition = primary.Position
-	local delta = (targetPoint - currentPosition) * Vector3.new(1, 0, 1)
-	if delta:FuzzyEq(Vector3.zero) then
+
+	local position = AbilityTypes.ResolveFaceTarget(target)
+	local delta = (position - primary.Position) * Vector3.new(1, 0, 1)
+	if not delta:FuzzyEq(Vector3.zero) then
+		self.Instance:PivotTo(CFrame.lookAlong(primary.Position, delta))
+	end
+
+	if duration == nil then
 		return
 	end
-	self.Instance:PivotTo(CFrame.lookAlong(currentPosition, delta))
+
+	if self.FaceTowardsLoopTrove ~= nil then
+		self.Trove:Remove(self.FaceTowardsLoopTrove)
+	end
+	local loopTrove = self.Trove:Extend()
+	self.FaceTowardsLoopTrove = loopTrove
+
+	local humanoid = self.Instance:FindFirstChildOfClass("Humanoid") :: Humanoid?
+	if humanoid ~= nil then
+		local wasAutoRotate = humanoid.AutoRotate
+		humanoid.AutoRotate = false
+		loopTrove:Add(function()
+			humanoid.AutoRotate = wasAutoRotate
+		end)
+	end
+
+	loopTrove:Add(function()
+		if self.FaceTowardsLoopTrove == loopTrove then
+			self.FaceTowardsLoopTrove = nil
+		end
+	end)
+
+	loopTrove:Connect(RunService.Heartbeat, function()
+		local framePosition = AbilityTypes.ResolveFaceTarget(target)
+		local frameDelta = (framePosition - primary.Position) * Vector3.new(1, 0, 1)
+		if frameDelta:FuzzyEq(Vector3.zero) then
+			return
+		end
+		self.ControllerManager.FacingDirection = frameDelta.Unit
+	end)
+
+	loopTrove:Add(task.delay(duration, function()
+		if self.FaceTowardsLoopTrove == loopTrove then
+			self.Trove:Remove(loopTrove)
+		end
+	end))
 end
 
 --[=[

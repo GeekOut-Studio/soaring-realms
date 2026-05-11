@@ -14,12 +14,14 @@
 	@within CombatTypes
 	@field GetTeam (Combatant) -> string? -- Returns the combatant's team. `nil` means hostile to everyone.
 	@field GetCFrame (Combatant) -> CFrame -- Position + facing. Used for range checks and any direction-dependent mechanics (backstabs, line-of-sight).
+	@field GetRoot (Combatant) -> BasePart -- Root `BasePart` of the combatant's rig (its `PrimaryPart`).
 	@field GetHealth (Combatant) -> number -- Reused from `DamageTarget`; `<= 0` means dead.
 	@field CombatSession CombatSession? -- Back-reference written by `CombatServer`. `nil` when out of combat.
 ]=]
 export type Combatant = {
 	GetTeam: (Combatant) -> string?,
 	GetCFrame: (Combatant) -> CFrame,
+	GetRoot: (Combatant) -> BasePart,
 	GetHealth: (Combatant) -> number,
 	CombatSession: CombatSession?,
 }

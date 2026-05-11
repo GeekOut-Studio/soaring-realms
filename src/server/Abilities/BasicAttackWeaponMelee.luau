@@ -108,8 +108,12 @@ local Handler: AbilityTypes.AbilityHandler = {
 			return
 		end
 
+		local faceTowardsDuration: number? = nil
 		if combatStats.AttackAnimation ~= nil then
-			activator:AnimationPlay(combatStats.AttackAnimation)
+			local track = activator:AnimationPlay(combatStats.AttackAnimation, 0)
+			if track.Length > 0 then
+				faceTowardsDuration = track.Length
+			end
 		end
 		local target = pickFromCombatSession(activator, combatStats.Range)
 		if target == nil then
@@ -125,7 +129,7 @@ local Handler: AbilityTypes.AbilityHandler = {
 			return
 		end
 
-		activator:FaceTowards(target:GetCFrame().Position)
+		activator:FaceTowards(target:GetRoot(), faceTowardsDuration)
 
 		local rolled = combatStats.Power.Min + math.random() * (combatStats.Power.Max - combatStats.Power.Min)
 		DamageServer.Damage({

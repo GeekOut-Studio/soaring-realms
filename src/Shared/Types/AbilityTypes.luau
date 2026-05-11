@@ -17,14 +17,25 @@ local CombatTypes = require(ReplicatedStorage.Shared.Types.CombatTypes)
 local Requirements = require(ReplicatedStorage.Shared.Requirements.Requirements)
 
 --[=[
+	@type FaceTarget Vector3 | BasePart | PVInstance
+	@within AbilityTypes
+	What `FaceTowards` accepts: a fixed world point, a part (read `.Position`),
+	or any other `PVInstance` (read `:GetPivot().Position`).
+]=]
+export type FaceTarget = Vector3 | BasePart | PVInstance
+
+--[=[
 	@interface AbilityActivator
 	@within AbilityTypes
 	@field GetTeam (AbilityActivator) -> string? -- Combatant teaming. `nil` = hostile to all.
 	@field GetCFrame (AbilityActivator) -> CFrame -- Combatant position + facing.
+	@field GetRoot (AbilityActivator) -> BasePart -- The activator's root `BasePart` (its rig's `PrimaryPart`).
 	@field GetHealth (AbilityActivator) -> number -- Current health; `<= 0` means dead.
 	@field CombatSession CombatSession? -- Current combat session; `nil` when out of combat.
-	@field AnimationPlay (AbilityActivator, kind: string) -> () -- Plays the named animation on the activator.
-	@field FaceTowards (AbilityActivator, point: Vector3) -> () -- Pivots the activator to face `point` horizontally. Implementation differs by rig (Outworlder uses `PivotTo`; Denizen uses `ControllerManager.FacingDirection`).
+	@field AnimationPlay (AbilityActivator, kind: string, ...any) -> AnimationTrack -- Plays the named animation on the activator and returns the underlying track so callers can read e.g. `Length` for timing. Extra arguments are forwarded to `AnimationTrack:Play` (`fadeTime`, `weight`, `speed`).
+	@field AnimationStop (AbilityActivator, kind: string, ...any) -> () -- Stops the named animation. No-op if the track was never loaded. Extra arguments are forwarded to `AnimationTrack:Stop` (`fadeTime`).
+	@field AnimationStopHard (AbilityActivator, kind: string) -> () -- Stops the named animation immediately by zeroing weight before stopping with no fade. No-op if the track was never loaded.
+	@field FaceTowards (AbilityActivator, target: FaceTarget, duration: number?) -> () -- Pivots the activator to face `target` horizontally. Accepts a `Vector3`, a `BasePart` (uses `.Position`), or any other `PVInstance` (uses `:GetPivot().Position`). When `duration` is provided, holds the facing for that many seconds and, for dynamic targets, retracks every frame (Outworlder honors this; Denizen currently ignores it). Implementation differs by rig (Outworlder uses `PivotTo` + `ControllerManager.FacingDirection`; Denizen uses `ControllerManager.FacingDirection`).
 
 	The minimal contract a handler can rely on. Handler-specific accessors
 	(e.g. `Outworlder:GetCombatStats(slot)`) are intentionally **not** part of
@@ -34,10 +45,13 @@ local Requirements = require(ReplicatedStorage.Shared.Requirements.Requirements)
 export type AbilityActivator = {
 	GetTeam: (AbilityActivator) -> string?,
 	GetCFrame: (AbilityActivator) -> CFrame,
+	GetRoot: (AbilityActivator) -> BasePart,
 	GetHealth: (AbilityActivator) -> number,
 	CombatSession: CombatTypes.CombatSession?,
-	AnimationPlay: (AbilityActivator, kind: string) -> (),
-	FaceTowards: (AbilityActivator, point: Vector3) -> (),
+	AnimationPlay: (AbilityActivator, kind: string, ...any) -> AnimationTrack,
+	AnimationStop: (AbilityActivator, kind: string, ...any) -> (),
+	AnimationStopHard: (AbilityActivator, kind: string) -> (),
+	FaceTowards: (AbilityActivator, target: FaceTarget, duration: number?) -> (),
 }
 
 --[=[
@@ -102,4 +116,24 @@ export type AbilityHandler = {
 	OnWillCooldown: ((baseCooldown: number, activator: AbilityActivator, config: any, context: any) -> number)?,
 }
 
-return {}
+local AbilityTypes = {}
+
+--[=[
+	Resolves a `FaceTarget` to a world-space position. `BasePart` is checked
+	before the generic `PVInstance` branch because parts are also `PVInstance`s
+	but `.Position` is cheaper than `:GetPivot()`.
+	@within AbilityTypes
+	@param target FaceTarget
+	@return Vector3
+]=]
+function AbilityTypes.ResolveFaceTarget(target: FaceTarget): Vector3
+	if typeof(target) == "Vector3" then
+		return target
+	end
+	if target:IsA("BasePart") then
+		return target.Position
+	end
+	return target:GetPivot().Position
+end
+
+return AbilityTypes

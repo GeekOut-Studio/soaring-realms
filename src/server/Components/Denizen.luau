@@ -39,6 +39,7 @@ local Behavior = require(ServerScriptService.Server.Behavior.Behavior)
 local AbilityServer = require(ServerScriptService.Server.Servers.AbilityServer)
 local CombatServer = require(ServerScriptService.Server.Servers.CombatServer)
 local InventoryServer = require(ServerScriptService.Server.Servers.InventoryServer)
+local AbilityTypes = require(ReplicatedStorage.Shared.Types.AbilityTypes)
 local AnimationDefs = require(ReplicatedStorage.Shared.Defs.AnimationDefs)
 local CombatTypes = require(ReplicatedStorage.Shared.Types.CombatTypes)
 local DamageTypes = require(ReplicatedStorage.Shared.Types.DamageTypes)
@@ -265,6 +266,16 @@ function Denizen:GetCFrame(): CFrame
 end
 
 --[=[
+	Returns the denizen's root `BasePart` (its `PrimaryPart`). Satisfies the
+	`AbilityActivator.GetRoot` contract.
+	@within Denizen
+	@return BasePart
+]=]
+function Denizen:GetRoot(): BasePart
+	return self.Instance.PrimaryPart :: BasePart
+end
+
+--[=[
 	Sets a destination point. The denizen will steer toward it on every heartbeat until
 	it arrives (within `ARRIVAL_THRESHOLD`) or `StopMoving` is called.
 	@within Denizen
@@ -285,14 +296,20 @@ function Denizen:FaceDirection(direction: Vector3?)
 end
 
 --[=[
-	Pivots the denizen to face `point` on the horizontal plane via the
+	Pivots the denizen to face `target` on the horizontal plane via the
 	`ControllerManager` (no Humanoid in the way, unlike `Outworlder:FaceTowards`).
-	Vertical component is discarded so the body stays upright. No-ops when the
-	flat delta is approximately zero.
+	`target` is resolved via `AbilityTypes.ResolveFaceTarget` (see that module
+	for accepted input shapes). Vertical component is discarded so the body stays upright.
+	No-ops when the flat delta is approximately zero. `duration` is accepted for `AbilityActivator`
+	interface parity with `Outworlder:FaceTowards` but currently ignored — the
+	denizen's behavior states already drive `FacingTarget` over time, so a
+	timed-hold variant isn't needed yet.
 	@within Denizen
-	@param point Vector3
+	@param target AbilityTypes.FaceTarget
+	@param _duration number?
 ]=]
-function Denizen:FaceTowards(point: Vector3)
+function Denizen:FaceTowards(target: AbilityTypes.FaceTarget, _duration: number?)
+	local point = AbilityTypes.ResolveFaceTarget(target)
 	local currentPosition = self:GetCFrame().Position
 	local delta = (point - currentPosition) * Vector3.new(1, 0, 1)
 	if delta:FuzzyEq(Vector3.zero) then
@@ -456,12 +473,16 @@ end
 
 --[=[
 	Plays the animation identified by `kind`, loading it on first use. Extra arguments are
-	forwarded to `AnimationTrack:Play` (e.g. `fadeTime`, `weight`, `speed`).
+	forwarded to `AnimationTrack:Play` (e.g. `fadeTime`, `weight`, `speed`). Returns the
+	underlying `AnimationTrack` so callers can read e.g. `Length` for timing decisions.
 	@within Denizen
 	@param kind string
+	@return AnimationTrack
 ]=]
-function Denizen:AnimationPlay(kind: string, ...: any)
-	getOrLoadTrack(self, kind):Play(...)
+function Denizen:AnimationPlay(kind: string, ...: any): AnimationTrack
+	local track = getOrLoadTrack(self, kind)
+	track:Play(...)
+	return track
 end
 
 --[=[
@@ -476,6 +497,21 @@ function Denizen:AnimationStop(kind: string, ...: any)
 		return
 	end
 	track:Stop(...)
+end
+
+--[=[
+	Stops the animation identified by `kind` immediately by zeroing its weight before
+	stopping with no fade. Returns silently if the track was never loaded.
+	@within Denizen
+	@param kind string
+]=]
+function Denizen:AnimationStopHard(kind: string)
+	local track = self.AnimationTracks[kind]
+	if track == nil then
+		return
+	end
+	track:AdjustWeight(0, 0)
+	track:Stop(0)
 end
 
 --[=[

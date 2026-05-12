@@ -15,6 +15,7 @@ local EquipmentTypes = require(ReplicatedStorage.Shared.Types.EquipmentTypes)
 local InventoryClient = require(ReplicatedStorage.Shared.Clients.InventoryClient)
 local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
 local InventoryTypes = require(ReplicatedStorage.Shared.Types.InventoryTypes)
+local UseDropTargetHover = require(ReplicatedStorage.Shared.React.Hooks.UseDropTargetHover)
 
 type Item = InventoryTypes.Item
 type DragItem = DragContext.DragItem
@@ -34,6 +35,7 @@ local function InventorySlot(props: SlotProps)
 	local contextMenuContext = React.useContext(ContextMenuContext.Context)
 	local slotRef = React.useRef(nil :: GuiObject?)
 	local isSource = dragContext.DragState ~= nil and dragContext.DragState.SourceSlot == props.SlotKey
+	local isDropHovered = UseDropTargetHover(props.SlotKey)
 
 	React.useEffect(function()
 		local instance = slotRef.current
@@ -168,8 +170,12 @@ local function InventorySlot(props: SlotProps)
 			},
 		}),
 		Stroke = e("UIStroke", {
-			Color = ColorDefs.SlotBorder,
-			Thickness = 1,
+			Color = isDropHovered:map(function(hovered)
+				return if hovered then ColorDefs.PanelBorder else ColorDefs.SlotBorder
+			end),
+			Thickness = isDropHovered:map(function(hovered)
+				return if hovered then 3 else 1
+			end),
 		}),
 	})
 end

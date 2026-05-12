@@ -12,6 +12,7 @@ export type AbilityDefs = { [string]: AbilityDef }
 
 local Defs = {
 	BasicAttackMainHandMelee = {
+		Name = "Attack",
 		Handler = "BasicAttackWeaponMelee",
 		Config = {
 			Slot = "MainHandMelee",
@@ -26,6 +27,7 @@ local Defs = {
 	},
 
 	DenizenMelee = {
+		Name = "Attack",
 		Handler = "DenizenMelee",
 		Config = {},
 		Costs = {},

@@ -16,6 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local Comm = require(ReplicatedStorage.Packages.Comm)
+local Observing = require(ReplicatedStorage.Shared.Observing)
 
 local AbilityClient = {}
 
@@ -58,6 +59,20 @@ function AbilityClient.Activate(abilityKind: string, context: any?): (boolean, s
 		end
 	end
 	return activateFunction(abilityKind, outgoing)
+end
+
+--[=[
+	Observes changes to the local player's cooldown table.
+
+	`callback` is called immediately with the current value and again on every
+	change. It may return a cleanup function that runs before the next
+	invocation and on disconnect.
+	@within AbilityClient
+	@param callback (cooldowns: {[string]: number}) -> (() -> ())?
+	@return () -> () -- Disconnects the observer.
+]=]
+function AbilityClient.ObserveCooldowns(callback: (cooldowns: { [string]: number }) -> (() -> ())?)
+	return Observing.observeCommProperty(cooldownsProperty, callback)
 end
 
 --[=[

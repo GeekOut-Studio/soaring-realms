@@ -82,6 +82,7 @@ export type TargetingSpec = {
 	@interface AbilityDef
 	@within AbilityTypes
 	@field Kind string -- Stable identifier; matches the table key in `AbilityDefs`.
+	@field Name string -- Human-readable display name. Used by HUD labels (hotbar slots, tooltips).
 	@field Handler string -- Selects the runtime module at `ServerScriptService.Server.Abilities.<Handler>`.
 	@field Config {[string]: any} -- Handler-specific configuration. Schema is defined by the handler module.
 	@field Costs Costs -- Resources consumed atomically on activation. Use an empty table for no cost.
@@ -92,6 +93,7 @@ export type TargetingSpec = {
 ]=]
 export type AbilityDef = {
 	Kind: string,
+	Name: string,
 	Handler: string,
 	Config: { [string]: any },
 	Costs: Costs,

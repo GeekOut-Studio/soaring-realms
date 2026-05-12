@@ -21,6 +21,7 @@ export type DragItem = {
 }
 
 type RegistryEntry = {
+	Id: string,
 	OnDrop: (dragItem: DragItem) -> (),
 }
 
@@ -32,6 +33,7 @@ type RegistryEntry = {
 	@field CancelDrag () -> ()
 	@field RegisterDropTarget (id: string, ref: GuiObject, onDrop: (dragItem: DragItem) -> ()) -> ()
 	@field UnregisterDropTarget (id: string, ref: GuiObject) -> ()
+	@field SubscribeDropTargetHover (id: string, setter: (boolean) -> ()) -> () -> () -- Calls `setter(true)` when `id` becomes the hovered drop target during a drag, and `setter(false)` when it stops. Returns an unsubscribe function. Prefer the `UseDropTargetHover` hook over calling this directly.
 ]=]
 export type DragContextValue = {
 	DragState: DragItem?,
@@ -39,6 +41,7 @@ export type DragContextValue = {
 	CancelDrag: () -> (),
 	RegisterDropTarget: (id: string, ref: GuiObject, onDrop: (dragItem: DragItem) -> ()) -> (),
 	UnregisterDropTarget: (id: string, ref: GuiObject) -> (),
+	SubscribeDropTargetHover: (id: string, setter: (boolean) -> ()) -> () -> (),
 }
 
 local defaultValue: DragContextValue = {
@@ -47,6 +50,9 @@ local defaultValue: DragContextValue = {
 	CancelDrag = function() end,
 	RegisterDropTarget = function() end,
 	UnregisterDropTarget = function() end,
+	SubscribeDropTargetHover = function()
+		return function() end
+	end,
 }
 
 --[=[
@@ -73,6 +79,35 @@ local function Provider(props: { children: any })
 	local dragState, setDragState = React.useState(nil :: DragItem?)
 	local hoveredEntry = React.useRef(nil :: RegistryEntry?)
 	local instanceMap = React.useRef({} :: { [GuiObject]: RegistryEntry })
+	local hoverSubscribers = React.useRef({} :: { [string]: (boolean) -> () })
+
+	-- Notifies hover subscribers when the hovered drop target changes. Reads
+	-- and writes `hoveredEntry.current` so callers don't have to track the
+	-- transition themselves.
+	local function setHoveredEntry(newEntry: RegistryEntry?)
+		local prev = hoveredEntry.current
+		if prev == newEntry then
+			return
+		end
+		hoveredEntry.current = newEntry
+		local prevId = if prev ~= nil then prev.Id else nil
+		local newId = if newEntry ~= nil then newEntry.Id else nil
+		if prevId == newId then
+			return
+		end
+		if prevId ~= nil then
+			local setter = hoverSubscribers.current[prevId]
+			if setter ~= nil then
+				setter(false)
+			end
+		end
+		if newId ~= nil then
+			local setter = hoverSubscribers.current[newId]
+			if setter ~= nil then
+				setter(true)
+			end
+		end
+	end
 
 	local beginDrag = React.useCallback(function(item, sourceContainer, sourceSlot)
 		setDragState({
@@ -84,30 +119,50 @@ local function Provider(props: { children: any })
 
 	local cancelDrag = React.useCallback(function()
 		setDragState(nil)
-		hoveredEntry.current = nil
+		setHoveredEntry(nil)
 	end, {})
 
-	local registerDropTarget = React.useCallback(function(_id, instance, onDrop)
-		instanceMap.current[instance] = { OnDrop = onDrop }
+	local registerDropTarget = React.useCallback(function(id, instance, onDrop)
+		instanceMap.current[instance] = { Id = id, OnDrop = onDrop }
 	end, {})
 
 	local unregisterDropTarget = React.useCallback(function(_id, instance)
 		local entry = instanceMap.current[instance]
 		if entry ~= nil and hoveredEntry.current == entry then
-			hoveredEntry.current = nil
+			setHoveredEntry(nil)
 		end
 		instanceMap.current[instance] = nil
 	end, {})
 
-	local contextValue = React.useMemo(function(): DragContextValue
-		return {
-			DragState = dragState,
-			BeginDrag = beginDrag,
-			CancelDrag = cancelDrag,
-			RegisterDropTarget = registerDropTarget,
-			UnregisterDropTarget = unregisterDropTarget,
-		}
-	end, { dragState, beginDrag, cancelDrag, registerDropTarget, unregisterDropTarget } :: { any })
+	local subscribeDropTargetHover = React.useCallback(function(id, setter)
+		hoverSubscribers.current[id] = setter
+		return function()
+			if hoverSubscribers.current[id] == setter then
+				hoverSubscribers.current[id] = nil
+			end
+		end
+	end, {})
+
+	local contextValue = React.useMemo(
+		function(): DragContextValue
+			return {
+				DragState = dragState,
+				BeginDrag = beginDrag,
+				CancelDrag = cancelDrag,
+				RegisterDropTarget = registerDropTarget,
+				UnregisterDropTarget = unregisterDropTarget,
+				SubscribeDropTargetHover = subscribeDropTargetHover,
+			}
+		end,
+		{
+			dragState,
+			beginDrag,
+			cancelDrag,
+			registerDropTarget,
+			unregisterDropTarget,
+			subscribeDropTargetHover,
+		} :: { any }
+	)
 
 	React.useEffect(function()
 		if dragState == nil then
@@ -125,14 +180,15 @@ local function Provider(props: { children: any })
 			end
 
 			local objects = playerGui:GetGuiObjectsAtPosition(input.Position.X, input.Position.Y)
-			hoveredEntry.current = nil
+			local found: RegistryEntry? = nil
 			for _, obj in objects do
 				local entry = instanceMap.current[obj]
 				if entry ~= nil then
-					hoveredEntry.current = entry
+					found = entry
 					break
 				end
 			end
+			setHoveredEntry(found)
 		end)
 
 		local endedConnection = UserInputService.InputEnded:Connect(function(input)
@@ -144,16 +200,17 @@ local function Provider(props: { children: any })
 			end
 
 			local entry = hoveredEntry.current
+			setHoveredEntry(nil)
 			if entry ~= nil then
 				entry.OnDrop(dragState)
 			end
 			setDragState(nil)
-			hoveredEntry.current = nil
 		end)
 
 		return function()
 			movedConnection:Disconnect()
 			endedConnection:Disconnect()
+			setHoveredEntry(nil)
 		end
 	end, { dragState } :: { any })
 

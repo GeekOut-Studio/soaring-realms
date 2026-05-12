@@ -68,6 +68,7 @@ local function Menus()
 			Position = UDim2.fromScale(1, 1),
 			Size = UDim2.fromOffset(PANEL_WIDTH, 0),
 			AutomaticSize = Enum.AutomaticSize.Y,
+			ZIndex = 64,
 		},
 	}, {
 		Layout = e(VerticalList, { Native = { Padding = UDim.new(0, GAP) } }),

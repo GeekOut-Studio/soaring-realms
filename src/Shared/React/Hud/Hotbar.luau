@@ -12,7 +12,9 @@ local HealthTypes = require(ReplicatedStorage.Shared.Types.HealthTypes)
 local HorizontalList = require(ReplicatedStorage.Shared.React.Common.HorizontalList)
 local MovementTypes = require(ReplicatedStorage.Shared.Types.MovementTypes)
 local OutworlderClient = require(ReplicatedStorage.Shared.Components.OutworlderClient)
+local AspectFit = require(ReplicatedStorage.Shared.React.Common.AspectFit)
 local TextButton = require(ReplicatedStorage.Shared.React.Common.TextButton)
+local UsePlatform = require(ReplicatedStorage.Shared.React.Hooks.UsePlatform)
 local VerticalList = require(ReplicatedStorage.Shared.React.Common.VerticalList)
 
 local e = React.createElement
@@ -22,6 +24,7 @@ local BAR_HEIGHT = 10
 local BUTTON_SIZE = 56
 
 local function Hotbar()
+	local isPhone = UsePlatform() == "Phone"
 	local stamina, setStamina = React.useState(MovementTypes.MaxStamina)
 	local maxStamina, setMaxStamina = React.useState(MovementTypes.MaxStamina)
 	local health, setHealth = React.useState(HealthTypes.DefaultMaxHealth)
@@ -65,60 +68,100 @@ local function Hotbar()
 		Native = {
 			Size = UDim2.fromScale(0, 0),
 			AutomaticSize = Enum.AutomaticSize.XY,
-			AnchorPoint = Vector2.new(0.5, 1),
-			Position = UDim2.fromScale(0.5, 1),
+			AnchorPoint = if isPhone then Vector2.new(0, 1) else Vector2.new(0.5, 1),
+			Position = if isPhone then UDim2.fromScale(0, 1) else UDim2.fromScale(0.5, 1),
 		},
 	}, {
-		Layout = e(VerticalList, {
+		Layout = e(HorizontalList, {
 			Native = {
-				HorizontalFlex = Enum.UIFlexAlignment.Fill,
-				VerticalAlignment = Enum.VerticalAlignment.Bottom,
-				HorizontalAlignment = Enum.HorizontalAlignment.Center,
 				Padding = PADDING,
+				HorizontalAlignment = Enum.HorizontalAlignment.Center,
+				VerticalFlex = Enum.UIFlexAlignment.Fill,
 			},
 		}),
-		ButtonsRow = e(Container, {
+		Left = e(Container, {
 			Native = {
-				LayoutOrder = -1,
+				LayoutOrder = 1,
+				Size = UDim2.fromScale(0, 0),
+				BorderSizePixel = 0,
+			},
+		}, {
+			Aspect = e(AspectFit, { Ratio = 1 }),
+			-- Placeholder for the equipped tool's primary ability. Wiring TBD.
+			PrimaryAbility = e(TextButton, {
+				Native = {
+					Size = UDim2.fromScale(1, 1),
+					Text = "",
+				},
+			}),
+		}),
+		Right = e(Container, {
+			Native = {
+				LayoutOrder = 3,
+				Size = UDim2.fromScale(0, 0),
+				BorderSizePixel = 0,
+			},
+		}, {
+			Aspect = e(AspectFit, { Ratio = 1 }),
+		}),
+		Center = e(Container, {
+			Native = {
+				LayoutOrder = 2,
 				Size = UDim2.fromScale(0, 0),
 				AutomaticSize = Enum.AutomaticSize.XY,
 			},
 		}, {
-			Layout = e(HorizontalList, {
+			Layout = e(VerticalList, {
 				Native = {
+					HorizontalFlex = Enum.UIFlexAlignment.Fill,
+					VerticalAlignment = Enum.VerticalAlignment.Bottom,
+					HorizontalAlignment = Enum.HorizontalAlignment.Center,
 					Padding = PADDING,
 				},
 			}),
-			Buttons = e(React.Fragment, nil, hotbarButtons),
-		}),
-		StaminaBar = e("Frame", {
-			LayoutOrder = -2,
-			BorderSizePixel = 0,
-			BackgroundColor3 = ColorDefs.Black,
-			Size = UDim2.fromOffset(0, BAR_HEIGHT),
-		}, {
-			Bar = e("Frame", {
-				BorderSizePixel = 0,
-				BackgroundColor3 = ColorDefs.StaminaBarFill,
-				Size = UDim2.fromScale(staminaFraction, 1),
+			ButtonsRow = e(Container, {
+				Native = {
+					LayoutOrder = -1,
+					Size = UDim2.fromScale(0, 0),
+					AutomaticSize = Enum.AutomaticSize.XY,
+				},
+			}, {
+				Layout = e(HorizontalList, {
+					Native = {
+						Padding = PADDING,
+					},
+				}),
+				Buttons = e(React.Fragment, nil, hotbarButtons),
 			}),
-		}),
-		HealthBar = e("Frame", {
-			LayoutOrder = -3,
-			BorderSizePixel = 0,
-			BackgroundColor3 = ColorDefs.Black,
-			Size = UDim2.fromOffset(0, BAR_HEIGHT),
-		}, {
-			Bar = e("Frame", {
+			StaminaBar = e("Frame", {
+				LayoutOrder = -2,
 				BorderSizePixel = 0,
-				BackgroundColor3 = ColorDefs.HealthBarFill,
-				Size = UDim2.fromScale(healthFraction, 1),
+				BackgroundColor3 = ColorDefs.Black,
+				Size = UDim2.fromOffset(0, BAR_HEIGHT),
+			}, {
+				Bar = e("Frame", {
+					BorderSizePixel = 0,
+					BackgroundColor3 = ColorDefs.StaminaBarFill,
+					Size = UDim2.fromScale(staminaFraction, 1),
+				}),
 			}),
-		}),
-		ActionProgress = e(ActionProgressBar, {
-			Native = {
-				LayoutOrder = -4,
-			},
+			HealthBar = e("Frame", {
+				LayoutOrder = -3,
+				BorderSizePixel = 0,
+				BackgroundColor3 = ColorDefs.Black,
+				Size = UDim2.fromOffset(0, BAR_HEIGHT),
+			}, {
+				Bar = e("Frame", {
+					BorderSizePixel = 0,
+					BackgroundColor3 = ColorDefs.HealthBarFill,
+					Size = UDim2.fromScale(healthFraction, 1),
+				}),
+			}),
+			ActionProgress = e(ActionProgressBar, {
+				Native = {
+					LayoutOrder = -4,
+				},
+			}),
 		}),
 	})
 end

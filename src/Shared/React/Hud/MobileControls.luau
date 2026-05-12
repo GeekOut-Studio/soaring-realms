@@ -15,7 +15,7 @@ local UseIsMobile = require(ReplicatedStorage.Shared.React.Hooks.UseIsMobile)
 
 local e = React.createElement
 
-local BUTTON_SIZE = 64
+local BUTTON_SIZE = 96
 local STROKE_THICKNESS = 3
 local CORNER_RADIUS = UDim.new(0.5, 0)
 local HEIGHT = 68
@@ -63,12 +63,12 @@ end
 
 --[=[
 	@class MobileControls
-	@client
 
 	Touch-only HUD overlay with Jump / Crouch / Sprint buttons. Renders
 	nothing on desktop. Anchored bottom-right and lifted above the
-	`Menus` button row so the controls sit just above (and may overlap
-	with) any open menu content panel.
+	`Menus` button row. Has a lower `ZIndex` than `Menus`, so an open
+	menu content panel renders over the buttons rather than the other
+	way around.
 
 	While mounted, hides Roblox's default mobile jump button so the player
 	doesn't see two stacked jump buttons.

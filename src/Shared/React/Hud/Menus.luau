@@ -8,6 +8,7 @@ local VerticalList = require(ReplicatedStorage.Shared.React.Common.VerticalList)
 local ColorDefs = require(ReplicatedStorage.Shared.Defs.ColorDefs)
 local Equipment = require(ReplicatedStorage.Shared.React.Hud.Equipment)
 local Inventory = require(ReplicatedStorage.Shared.React.Hud.Inventory)
+local MenusContext = require(ReplicatedStorage.Shared.React.MenusContext)
 local Skills = require(ReplicatedStorage.Shared.React.Hud.Skills)
 
 local e = React.createElement
@@ -25,14 +26,19 @@ local MENU_DEFS = {
 }
 
 local function Menus()
-	local selectedMenu, setSelectedMenu = React.useState(nil :: string?)
+	local menusContext = React.useContext(MenusContext.Context)
+	local openedMenu = menusContext.OpenedMenu
+	local isForced = menusContext.IsForced
 
 	local buttons: { [string]: any } = {
 		Layout = e(HorizontalList, { Native = { Padding = UDim.new(0, GAP) } }),
 	}
 
 	for i, menu in MENU_DEFS do
-		local isSelected = selectedMenu == menu.Key
+		local isSelected = openedMenu == menu.Key
+		-- While forced, non-selected tabs render dimmed and clicks no-op (OpenMenu
+		-- itself short-circuits, but dimming gives the user a visual cue).
+		local dimmed = isForced and not isSelected
 		buttons[menu.Key] = e(TextButton, {
 			Native = {
 				Size = UDim2.fromOffset(BUTTON_SIZE, BUTTON_SIZE),
@@ -40,8 +46,10 @@ local function Menus()
 				Text = menu.Label,
 				TextSize = 12,
 				BackgroundColor3 = if isSelected then ColorDefs.ButtonSelected else ColorDefs.ButtonIdle,
+				BackgroundTransparency = if dimmed then 0.5 else 0,
+				AutoButtonColor = not dimmed,
 				[React.Event.Activated] = function()
-					setSelectedMenu(if isSelected then nil else menu.Key)
+					menusContext.OpenMenu(if isSelected then nil else menu.Key)
 				end,
 			},
 		}, {
@@ -53,9 +61,9 @@ local function Menus()
 	end
 
 	local activeComponent = nil
-	if selectedMenu ~= nil then
+	if openedMenu ~= nil then
 		for _, menu in MENU_DEFS do
-			if menu.Key == selectedMenu and menu.Component ~= nil then
+			if menu.Key == openedMenu and menu.Component ~= nil then
 				activeComponent = e(menu.Component)
 				break
 			end
@@ -73,7 +81,7 @@ local function Menus()
 	}, {
 		Layout = e(VerticalList, { Native = { Padding = UDim.new(0, GAP) } }),
 
-		Content = if selectedMenu ~= nil
+		Content = if openedMenu ~= nil
 			then e(Container, {
 				Native = {
 					Active = true,

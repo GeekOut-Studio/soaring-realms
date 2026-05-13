@@ -18,15 +18,28 @@ local InventoryTypes = require(ReplicatedStorage.Shared.Types.InventoryTypes)
 	@interface LootEntry
 	@within LootTypes
 	@field Kind string -- `ItemDefs` key.
-	@field Min number -- Inclusive minimum quantity on a successful roll.
-	@field Max number -- Inclusive maximum quantity on a successful roll.
 	@field Chance number? -- 0..1 probability of this entry hitting. Defaults to 1.
+	@field Min number? -- Range form, inclusive minimum. Used iff both `Min` and `Max` are set.
+	@field Max number? -- Range form, inclusive maximum. Used iff both `Min` and `Max` are set.
+	@field Count number? -- Fixed quantity. Used when the range form isn't fully specified. Defaults to 1.
+
+	Each entry picks one of two quantity-rolling forms at runtime:
+	- **Range:** both `Min` and `Max` set; rolled count is uniform on `[Min, Max]`.
+	- **Fixed:** otherwise; rolled count is `Count` (or `1` if omitted).
+
+	The forms aren't expressed as a union type because Luau's analyzer
+	can't reliably resolve table-literal unions branch-by-branch — a
+	type-level "either both Min/Max or just Count" would force every
+	def-site to ship an annotation. The flat all-optional shape is the
+	pragmatic price; the runtime in `LootShared.RollLootTable` enforces
+	the form discrimination.
 ]=]
 export type LootEntry = {
 	Kind: string,
-	Min: number,
-	Max: number,
 	Chance: number?,
+	Min: number?,
+	Max: number?,
+	Count: number?,
 }
 
 --[=[

@@ -4,66 +4,32 @@ local UserInputService = game:GetService("UserInputService")
 local React = require(ReplicatedStorage.Packages.React)
 local Container = require(ReplicatedStorage.Shared.React.Common.Container)
 local GridLayout = require(ReplicatedStorage.Shared.React.Common.GridLayout)
-local Label = require(ReplicatedStorage.Shared.React.Common.Label)
-local ColorDefs = require(ReplicatedStorage.Shared.Defs.ColorDefs)
+local ItemSlot = require(ReplicatedStorage.Shared.React.Common.ItemSlot)
 local ContextMenuActions = require(ReplicatedStorage.Shared.React.ContextMenuActions)
 local ContextMenuContext = require(ReplicatedStorage.Shared.React.ContextMenuContext)
 local DragContext = require(ReplicatedStorage.Shared.React.DragContext)
-local DragOrTap = require(ReplicatedStorage.Shared.React.DragOrTap)
 local EquipmentClient = require(ReplicatedStorage.Shared.Clients.EquipmentClient)
 local EquipmentTypes = require(ReplicatedStorage.Shared.Types.EquipmentTypes)
 local InventoryClient = require(ReplicatedStorage.Shared.Clients.InventoryClient)
 local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
 local InventoryTypes = require(ReplicatedStorage.Shared.Types.InventoryTypes)
-local UseDropTargetHover = require(ReplicatedStorage.Shared.React.Hooks.UseDropTargetHover)
+local LootClient = require(ReplicatedStorage.Shared.Clients.LootClient)
+local UsePlatform = require(ReplicatedStorage.Shared.React.Hooks.UsePlatform)
 
 type Item = InventoryTypes.Item
 type DragItem = DragContext.DragItem
 
 local e = React.createElement
 
-local DRAG_THRESHOLD = 10
-
-type SlotProps = {
+local function InventorySlot(props: {
 	SlotKey: string,
 	Item: Item?,
 	LayoutOrder: number,
-}
-
-local function InventorySlot(props: SlotProps)
-	local dragContext = React.useContext(DragContext.Context)
+})
 	local contextMenuContext = React.useContext(ContextMenuContext.Context)
-	local slotRef = React.useRef(nil :: GuiObject?)
-	local isSource = dragContext.DragState ~= nil and dragContext.DragState.SourceSlot == props.SlotKey
-	local isDropHovered = UseDropTargetHover(props.SlotKey)
-
-	React.useEffect(function()
-		local instance = slotRef.current
-		if instance == nil then
-			return
-		end
-
-		dragContext.RegisterDropTarget(props.SlotKey, instance, function(dragItem: DragItem)
-			if dragItem.SourceContainer ~= "Inventory" then
-				return
-			end
-			if dragItem.SourceSlot ~= props.SlotKey then
-				InventoryClient.MoveItem(dragItem.SourceSlot, props.SlotKey)
-			end
-		end)
-
-		return function()
-			dragContext.UnregisterDropTarget(props.SlotKey, instance)
-		end
-	end, {})
+	local platform = UsePlatform()
 
 	local item = props.Item
-	local text = ""
-	if item ~= nil then
-		local def = ItemDefs[item.Kind]
-		local name = if def ~= nil then def.Name else item.Kind
-		text = if item.Count ~= nil then name .. "\n×" .. item.Count else name
-	end
 
 	local function buildActions(slotKey: string): { ContextMenuContext.ContextMenuAction }
 		local actions: { ContextMenuContext.ContextMenuAction } = {}
@@ -102,81 +68,46 @@ local function InventorySlot(props: SlotProps)
 		)
 	end
 
-	return e(Container, {
-		Native = {
-			ref = slotRef,
-			LayoutOrder = props.LayoutOrder,
-			BackgroundColor3 = ColorDefs.SlotBackground,
-			BackgroundTransparency = if isSource then 0.5 else 0,
-			[React.Event.InputBegan] = function(_, input)
-				if item == nil then
-					return
-				end
+	-- Desktop tap performs the slot's default click action (equip etc.). Mobile
+	-- has no right-click, so a tap opens the full context menu — same behavior
+	-- the pre-extraction `InventorySlot` had.
+	local function onTap()
+		if platform == "Desktop" or platform == "Console" then
+			local action = ContextMenuActions.FindClickAction(buildActions(props.SlotKey))
+			if action ~= nil then
+				action.OnSelect()
+			end
+		else
+			openMenu(UserInputService:GetMouseLocation())
+		end
+	end
 
-				local function beginDrag()
-					dragContext.BeginDrag(item, "Inventory", props.SlotKey)
-				end
+	-- Stable identity across renders so ItemSlot's `RegisterDropTarget` effect
+	-- doesn't unregister/re-register every render. `props.SlotKey` is the only
+	-- captured value that varies between slots, so it's the lone dep.
+	local onDrop = React.useCallback(function(dragItem: DragItem)
+		if dragItem.SourceContainer == "Inventory" then
+			if dragItem.SourceSlot ~= props.SlotKey then
+				InventoryClient.MoveItem(dragItem.SourceSlot, props.SlotKey)
+			end
+		elseif dragItem.SourceContainer == "LootBag" then
+			-- `SourceSlot` is `"LootBag:<index>"` (the prefix keeps it unique
+			-- against inventory slot ids in `DragContext`'s hover registry).
+			local index = tonumber(dragItem.SourceSlot:match("^LootBag:(%d+)$"))
+			if index ~= nil then
+				LootClient.ClaimOne(index, props.SlotKey)
+			end
+		end
+	end, { props.SlotKey } :: { any })
 
-				if input.UserInputType == Enum.UserInputType.MouseButton1 and dragContext.DragState == nil then
-					DragOrTap.Track({
-						StartPos = Vector2.new(input.Position.X, input.Position.Y),
-						IsMove = function(i)
-							return i.UserInputType == Enum.UserInputType.MouseMovement
-						end,
-						IsRelease = function(i)
-							return i.UserInputType == Enum.UserInputType.MouseButton1
-						end,
-						Threshold = DRAG_THRESHOLD,
-						OnDrag = beginDrag,
-						OnTap = function()
-							local action = ContextMenuActions.FindClickAction(buildActions(props.SlotKey))
-							if action ~= nil then
-								action.OnSelect()
-							end
-						end,
-					})
-				elseif input.UserInputType == Enum.UserInputType.MouseButton2 and dragContext.DragState == nil then
-					openMenu(UserInputService:GetMouseLocation())
-				elseif
-					input.UserInputType == Enum.UserInputType.Touch
-					and input.UserInputState == Enum.UserInputState.Begin
-					and dragContext.DragState == nil
-				then
-					local touchInput = input
-					DragOrTap.Track({
-						StartPos = Vector2.new(input.Position.X, input.Position.Y),
-						IsMove = function(i)
-							return i == touchInput
-						end,
-						IsRelease = function(i)
-							return i == touchInput
-						end,
-						Threshold = DRAG_THRESHOLD,
-						OnDrag = beginDrag,
-						OnTap = function()
-							openMenu(UserInputService:GetMouseLocation())
-						end,
-					})
-				end
-			end,
-		},
-	}, {
-		ItemLabel = e(Label, {
-			Native = {
-				TextColor3 = ColorDefs.TextPrimary,
-				TextSize = 13,
-				TextWrapped = true,
-				Text = text,
-			},
-		}),
-		Stroke = e("UIStroke", {
-			Color = isDropHovered:map(function(hovered)
-				return if hovered then ColorDefs.PanelBorder else ColorDefs.SlotBorder
-			end),
-			Thickness = isDropHovered:map(function(hovered)
-				return if hovered then 3 else 1
-			end),
-		}),
+	return e(ItemSlot, {
+		Item = item,
+		LayoutOrder = props.LayoutOrder,
+		SlotKey = props.SlotKey,
+		SourceContainer = "Inventory",
+		OnDrop = onDrop,
+		OnTap = onTap,
+		OnAlternate = openMenu,
 	})
 end
 

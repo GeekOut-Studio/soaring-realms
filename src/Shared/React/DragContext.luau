@@ -199,12 +199,16 @@ local function Provider(props: { children: any })
 				return
 			end
 
+			-- Clear drag state BEFORE OnDrop — it can yield (RPC), and a trailing
+			-- `setDragState(nil)` after a yield risks getting lost if the tree
+			-- unmounts mid-yield, stranding the preview on the cursor.
 			local entry = hoveredEntry.current
+			local pending = dragState
 			setHoveredEntry(nil)
-			if entry ~= nil then
-				entry.OnDrop(dragState)
-			end
 			setDragState(nil)
+			if entry ~= nil then
+				entry.OnDrop(pending)
+			end
 		end)
 
 		return function()

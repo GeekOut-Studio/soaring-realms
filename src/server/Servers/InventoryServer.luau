@@ -145,6 +145,57 @@ function InventoryServer.AddItem(player: Player, kind: string, count: number?, m
 end
 
 --[=[
+	Inserts `item` at exactly `slotKey`. Strict: succeeds only when the
+	target slot is empty, or when it holds the same stackable `Kind` with
+	matching `Meta` and full room for `item.Count`. Anything else returns
+	`false` — no swaps, no partial merges, no fallback to another slot.
+
+	Callers that want "place here, otherwise anywhere" should fall back to
+	`AddItem` on a `false` return. `LootServer.ClaimOne` does exactly that.
+	@within InventoryServer
+	@param player Player
+	@param slotKey string -- Target slot key (`"1"`..`tostring(InventoryTypes.Size)`).
+	@param item Item -- Stack-aware `Count` and `Meta` are honored.
+	@return boolean
+]=]
+function InventoryServer.InsertItemAt(player: Player, slotKey: string, item: Item): boolean
+	local def = ItemDefs[item.Kind]
+	assert(def ~= nil, `InventoryServer.InsertItemAt: unknown item kind {item.Kind}`)
+
+	local slotIndex = tonumber(slotKey)
+	if slotIndex == nil or slotIndex < 1 or slotIndex > InventoryTypes.Size or slotIndex ~= math.floor(slotIndex) then
+		return false
+	end
+
+	local data = DataServer.GetData(player)
+	if data == nil then
+		return false
+	end
+	local inventory: Inventory = Sift.Dictionary.copy(asInventory(data))
+	local existing = inventory[slotKey]
+
+	if existing == nil then
+		inventory[slotKey] = { Kind = item.Kind, Count = item.Count, Meta = item.Meta }
+	elseif
+		def.MaxStackSize ~= nil
+		and existing.Kind == item.Kind
+		and InventoryShared.MetaEqual(existing.Meta, item.Meta)
+	then
+		local incomingCount = item.Count or 1
+		local existingCount = existing.Count or 0
+		if incomingCount > def.MaxStackSize - existingCount then
+			return false
+		end
+		inventory[slotKey] = { Kind = existing.Kind, Count = existingCount + incomingCount, Meta = existing.Meta }
+	else
+		return false
+	end
+
+	commit(player, inventory)
+	return true
+end
+
+--[=[
 	Removes items from a specific inventory slot.
 
 	For stackable items, reduces Count; clears the slot when Count reaches 0.

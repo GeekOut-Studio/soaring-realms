@@ -20,15 +20,17 @@
 
 	The component (`LootBag`) is a view: it reads its loot via
 	`GetBagLoot`, drives the per-player `Comm` property from that, and
-	delegates claims to `ClaimLoot`. It owns its spatial concerns
-	(distance check, lifetime, destroy) but not the loot data. On
-	`LootBag:Stop` the component calls `DiscardBag` to release the
+	delegates claims to `ClaimOne` / `ClaimAll`. It owns its spatial
+	concerns (distance check, lifetime, destroy) but not the loot data.
+	On `LootBag:Stop` the component calls `DiscardBag` to release the
 	server-side entry.
 ]=]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 local Workspace = game:GetService("Workspace")
 
+local InventoryServer = require(ServerScriptService.Server.Servers.InventoryServer)
 local LootTypes = require(ReplicatedStorage.Shared.Types.LootTypes)
 
 type PlayerLoot = LootTypes.PlayerLoot
@@ -135,17 +137,70 @@ function LootServer.IsBagEmpty(bag: Instance): boolean
 end
 
 --[=[
-	Authoritative claim. If `player` has loot pending at `bag`, prints
-	the loot (placeholder for the upcoming inventory transfer), clears
-	their entry, and returns `true`. Returns `false` otherwise.
-	Spatial validation is the caller's responsibility — `LootBag`
-	already does the distance check before reaching this point.
+	Authoritative single-item claim. If `player` has an item at `index`
+	in their pile and the inventory transfer succeeds, removes the item
+	and returns `true`. Returns `false` when the bag/player has no
+	entry, the index is out of range, or the inventory rejects the add
+	(e.g. full).
+
+	When `targetSlot` is provided (drag-to-specific-slot from the loot
+	menu), tries `InsertItemAt` first; on failure falls back to the
+	auto-slot `AddItem` path. Only when *both* fail does this return
+	`false`.
+
+	Spatial validation is the caller's responsibility — `LootBag`'s
+	`HandleLoot*` paths do the distance check before reaching this
+	point.
+	@within LootServer
+	@param bag Instance
+	@param player Player
+	@param index number -- 1-based index into the player's `PlayerLoot` array.
+	@param targetSlot string? -- Optional preferred inventory slot.
+	@return boolean
+]=]
+function LootServer.ClaimOne(bag: Instance, player: Player, index: number, targetSlot: string?): boolean
+	local map = lootByInstance[bag]
+	if map == nil then
+		return false
+	end
+	local loot = map[player]
+	if loot == nil then
+		return false
+	end
+	local item = loot[index]
+	if item == nil then
+		return false
+	end
+
+	local placed = false
+	if targetSlot ~= nil then
+		placed = InventoryServer.InsertItemAt(player, targetSlot, item)
+	end
+	if not placed then
+		placed = InventoryServer.AddItem(player, item.Kind, item.Count, item.Meta)
+	end
+	if not placed then
+		return false
+	end
+
+	table.remove(loot, index)
+	if #loot == 0 then
+		map[player] = nil
+	end
+	return true
+end
+
+--[=[
+	Authoritative bulk claim. Tries to transfer every item in `player`'s
+	pile to inventory, in order. Items that fail to fit are left behind so
+	the player can come back for them (or claim individually). Returns
+	`true` if at least one item was claimed.
 	@within LootServer
 	@param bag Instance
 	@param player Player
 	@return boolean
 ]=]
-function LootServer.ClaimLoot(bag: Instance, player: Player): boolean
+function LootServer.ClaimAll(bag: Instance, player: Player): boolean
 	local map = lootByInstance[bag]
 	if map == nil then
 		return false
@@ -155,9 +210,21 @@ function LootServer.ClaimLoot(bag: Instance, player: Player): boolean
 		return false
 	end
 
-	print(`[LootBag] {player.Name} looted:`, loot)
-	map[player] = nil
-	return true
+	local claimedAny = false
+	-- Walk in reverse so in-place removals don't shift indexes we haven't
+	-- visited yet.
+	for i = #loot, 1, -1 do
+		local item = loot[i]
+		if InventoryServer.AddItem(player, item.Kind, item.Count, item.Meta) then
+			table.remove(loot, i)
+			claimedAny = true
+		end
+	end
+
+	if #loot == 0 then
+		map[player] = nil
+	end
+	return claimedAny
 end
 
 --[=[

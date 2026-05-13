@@ -77,7 +77,7 @@ export type DenizenDefs = { [string]: DenizenDef }
 local Defs = {
 	Imp = {
 		Name = "Imp",
-		MaxHealth = 50,
+		MaxHealth = 2,
 		MoveSpeed = 8,
 		Animations = {
 			Idle = "ImpIdle",
@@ -94,7 +94,8 @@ local Defs = {
 		},
 		LootTable = {
 			{ Kind = "Coin", Min = 5, Max = 15 },
-		},
+			{ Kind = "Stone" },
+		} :: LootTypes.LootTable,
 		Behavior = {
 			Initial = "Idle",
 			States = {

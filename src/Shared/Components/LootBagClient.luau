@@ -6,12 +6,11 @@
 	to `LootProperty` (per-player via `RemoteProperty:SetFor`); when the
 	local player has a non-empty loot pile, downloads the bag visual
 	asset and parents it under the tagged part, plus a `ProximityPrompt`
-	whose `Triggered` event calls the server's `Loot` function. When the
-	player has no loot at this bag, nothing is rendered.
+	whose `Triggered` event opens the loot UI via `LootClient.OpenBag`.
 
-	The prompt's behaviour is intentionally minimal for now — server
-	`HandleLoot` just prints to the console. A proper loot UI will own
-	the trigger flow next.
+	The component exposes the Comm handles (`LootProperty`,
+	`LootOneFunction`, `LootAllFunction`) that `LootMenu` and
+	`LootClient` reach into directly — no method wrappers.
 ]=]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -22,6 +21,7 @@ local Component = require(ReplicatedStorage.Packages.Component)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local DownloadClient = require(ReplicatedStorage.Shared.Clients.DownloadClient)
+local LootClient = require(ReplicatedStorage.Shared.Clients.LootClient)
 local LootTypes = require(ReplicatedStorage.Shared.Types.LootTypes)
 local Observing = require(ReplicatedStorage.Shared.Observing)
 
@@ -35,6 +35,14 @@ local LootBagClient = Component.new({
 	Ancestors = { Workspace },
 })
 
+--[=[
+	@prop LootProperty any
+	@within LootBagClient
+	Per-player `RemoteProperty` mirroring the server's view of this
+	player's loot pile. `LootMenu` observes it to render contents and to
+	auto-close when it goes empty/nil.
+]=]
+
 function LootBagClient:Construct()
 	self.Trove = Trove.new()
 	self.VisualTrove = nil :: any
@@ -42,7 +50,8 @@ function LootBagClient:Construct()
 	self.Comm = Comm.ClientComm.new(self.Instance, false, "LootBag")
 	self.Trove:Add(self.Comm)
 	self.LootProperty = self.Comm:GetProperty("Loot")
-	self.LootFunction = self.Comm:GetFunction("Loot")
+	self.LootOneFunction = self.Comm:GetFunction("LootOne")
+	self.LootAllFunction = self.Comm:GetFunction("LootAll")
 end
 
 function LootBagClient:Start()
@@ -57,14 +66,17 @@ function LootBagClient:Start()
 end
 
 function LootBagClient:Stop()
+	-- Filter on `self` so a stale-component teardown doesn't clobber a
+	-- newer bag the player may have opened in the meantime.
+	LootClient.CloseBag(self)
 	self.Trove:Destroy()
 end
 
 --[=[
 	Downloads the bag asset (if not already shown), parents it under the
-	tagged part, and attaches a `ProximityPrompt` whose trigger fires
-	the server-bound `Loot` function. Idempotent — calling while already
-	shown is a no-op.
+	tagged part, and attaches a `ProximityPrompt` whose trigger opens
+	the loot UI via `LootClient.OpenBag`. Idempotent — calling while
+	already shown is a no-op.
 	@within LootBagClient
 ]=]
 function LootBagClient:ShowVisual()
@@ -90,16 +102,19 @@ function LootBagClient:ShowVisual()
 		prompt.Parent = self.Instance
 		visualTrove:Add(prompt)
 		visualTrove:Connect(prompt.Triggered, function()
-			self.LootFunction()
+			LootClient.OpenBag(self)
 		end)
 	end))
 end
 
 --[=[
-	Tears down the rendered visual + prompt for this bag, if any.
+	Tears down the rendered visual + prompt for this bag, if any. Also
+	closes the loot UI if this bag was the active one, so a server-side
+	"empty pile" update collapses the menu cleanly.
 	@within LootBagClient
 ]=]
 function LootBagClient:HideVisual()
+	LootClient.CloseBag(self)
 	if self.VisualTrove == nil then
 		return
 	end

@@ -26,12 +26,13 @@ local rng = Random.new()
 
 --[=[
 	Rolls a single `LootTable`. Each entry independently rolls its
-	`Chance` (default `1`); on a hit, a quantity in `[Min, Max]` is
-	drawn. Stackable items (those whose `ItemDefs` entry has
-	`MaxStackSize`) are emitted as one `Item` with `Count = quantity`;
+	`Chance` (default `1`). On a hit, the quantity comes from one of two
+	forms: range (`Min`/`Max`, uniform integer in `[Min, Max]`) or fixed
+	(`Count`, default `1`). Stackable items (those whose `ItemDefs` entry
+	has `MaxStackSize`) are emitted as one `Item` with `Count = quantity`;
 	non-stackables are emitted as `quantity` separate `Item`s with no
-	`Count` field, matching the contract `InventoryTypes.Item`
-	documents. Unknown item kinds are skipped with a `warn`.
+	`Count` field, matching the contract `InventoryTypes.Item` documents.
+	Unknown item kinds are skipped with a `warn`.
 	@within LootShared
 	@param lootTable LootTable
 	@return PlayerLoot
@@ -43,10 +44,17 @@ function LootShared.RollLootTable(lootTable: LootTable): PlayerLoot
 		if chance ~= nil and rng:NextNumber() >= chance then
 			continue
 		end
-		local count = rng:NextInteger(entry.Min, entry.Max)
+
+		local count: number
+		if entry.Min ~= nil and entry.Max ~= nil then
+			count = rng:NextInteger(entry.Min, entry.Max)
+		else
+			count = entry.Count or 1
+		end
 		if count <= 0 then
 			continue
 		end
+
 		local def = ItemDefs[entry.Kind]
 		if def == nil then
 			warn(`LootShared.RollLootTable: unknown item kind "{entry.Kind}"; skipping`)

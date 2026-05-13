@@ -230,6 +230,14 @@ function Denizen:SetUpController()
 	manager.BaseMoveSpeed = self.Def.MoveSpeed
 
 	local groundController = Instance.new("GroundController")
+	-- Best-guess `GroundOffset` so the model's lowest extent rests on the ground:
+	-- the distance from the root part's bottom face down to the model's bounding-
+	-- box bottom. For rigs where the PrimaryPart sits above the feet (the usual
+	-- case), this is positive and props the root up by that amount.
+	local rootBottom = primary.Position.Y - primary.Size.Y / 2
+	local modelCFrame, modelSize = self.Instance:GetBoundingBox()
+	local modelBottom = modelCFrame.Position.Y - modelSize.Y / 2
+	groundController.GroundOffset = rootBottom - modelBottom
 	groundController.Parent = manager
 
 	local airController = Instance.new("AirController")

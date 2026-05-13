@@ -13,6 +13,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Sift = require(ReplicatedStorage.Packages.Sift)
 
 local ItemStatsTypes = require(ReplicatedStorage.Shared.Types.ItemStatsTypes)
+local LootTypes = require(ReplicatedStorage.Shared.Types.LootTypes)
 
 --[=[
 	@interface Animations
@@ -38,6 +39,7 @@ export type Animations = {
 	@field Team string? -- Combat team identifier. `nil` means hostile to everyone. Two teams currently exist: `"Players"` and `"Enemies"`.
 	@field Behavior BehaviorDef? -- Optional FSM definition consumed by the server-side `Behavior` runner. Omit for static denizens.
 	@field CombatStats CombatStats? -- Optional. Per-denizen combat numbers (Interval/Power/Range/DamageType/AttackAnimation) read by ability handlers (e.g. `DenizenMelee`) when the denizen activates an attack ability. Omit for denizens that never attack.
+	@field LootTable LootTable? -- Optional. Per-eligible-player loot roll table consumed by `Denizen:Die` → `LootShared.RollLootTable`. Omit for denizens that drop nothing.
 ]=]
 export type DenizenDef = {
 	Kind: string,
@@ -48,6 +50,7 @@ export type DenizenDef = {
 	Team: string?,
 	Behavior: BehaviorDef?,
 	CombatStats: ItemStatsTypes.CombatStats?,
+	LootTable: LootTypes.LootTable?,
 }
 
 --[=[
@@ -88,6 +91,9 @@ local Defs = {
 			Range = 8,
 			DamageType = "Slashing",
 			AttackAnimation = "ImpAttack",
+		},
+		LootTable = {
+			{ Kind = "Coin", Min = 5, Max = 15 },
 		},
 		Behavior = {
 			Initial = "Idle",

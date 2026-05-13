@@ -20,8 +20,8 @@ local function CombatantBillboard(props: {
 	HealthProperty: any,
 	MaxHealthProperty: any,
 }): any
-	local initialHealth = props.HealthProperty:Get() :: number
-	local initialMax = props.MaxHealthProperty:Get() :: number
+	local initialHealth = (props.HealthProperty:Get() :: number?) or 0
+	local initialMax = (props.MaxHealthProperty:Get() :: number?) or 0
 	local initialAlpha = if initialMax > 0 then initialHealth / initialMax else 0
 
 	local alphaBinding, setAlpha = React.useBinding(initialAlpha)

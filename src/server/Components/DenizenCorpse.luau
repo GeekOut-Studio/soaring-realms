@@ -19,14 +19,15 @@
 	- `DenizenKind` (`DenizenKind`) — selects the def in `DenizenDefs`.
 ]=]
 
-local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 local Workspace = game:GetService("Workspace")
 
 local Component = require(ReplicatedStorage.Packages.Component)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local t = require(ReplicatedStorage.Packages.t)
 
+local LootServer = require(ServerScriptService.Server.Servers.LootServer)
 local AnimationDefs = require(ReplicatedStorage.Shared.Defs.AnimationDefs)
 local DenizenDefs = require(ReplicatedStorage.Shared.Defs.DenizenDefs)
 
@@ -62,14 +63,14 @@ function DenizenCorpse:Start()
 
 	local death = self.Def.Animations.Death
 	if death == nil then
-		self.Instance:Destroy()
+		self:Despawn()
 		return
 	end
 
 	local animator = self:GetAnimator()
 	if animator == nil then
 		warn(`DenizenCorpse: {self.Instance:GetFullName()} has no Animator; destroying without animation`)
-		self.Instance:Destroy()
+		self:Despawn()
 		return
 	end
 
@@ -78,19 +79,30 @@ function DenizenCorpse:Start()
 	track.Looped = false
 	self.Trove:Add(track)
 	self.Trove:Add(track.Stopped:Connect(function()
-		-- Removing the tag first triggers our Stop synchronously through the
-		-- Component package, cleaning up the track + Stopped connection before
-		-- the model goes away. `Destroy` would still cascade-clean the track,
-		-- but going through the component tear-down keeps the lifecycle path
-		-- consistent.
-		CollectionService:RemoveTag(self.Instance, "DenizenCorpse")
-		self.Instance:Destroy()
+		self:Despawn()
 	end))
 	track:Play()
 end
 
 function DenizenCorpse:Stop()
 	self.Trove:Destroy()
+end
+
+--[=[
+	Capture the model's current pivot, ask `LootServer` to materialize
+	any pending loot drop at that location, then untag and destroy the
+	model. Going through `RemoveTag` first triggers our own `Stop`
+	synchronously via the Component package — cleaning up the death
+	animation track + `Stopped` connection — before the model goes
+	away. `Destroy` would still cascade-clean those, but routing
+	through component teardown keeps the lifecycle path consistent.
+	@within DenizenCorpse
+]=]
+function DenizenCorpse:Despawn()
+	local cframe = self.Instance:GetPivot()
+	LootServer.ResolvePendingDrop(self.Instance, cframe)
+	self.Instance:RemoveTag("DenizenCorpse")
+	self.Instance:Destroy()
 end
 
 --[=[

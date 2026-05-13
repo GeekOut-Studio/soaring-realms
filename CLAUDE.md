@@ -5,6 +5,7 @@
 - Prefer `x ~= nil` / `x == nil` over `not x` / `if x` when the intent is a nil check.
 - Prefer `vector:FuzzyEq(Vector3.zero)` over `vector.Magnitude > epsilon` for is-this-vector-zero checks. Skips a `sqrt`, and `FuzzyEq`'s default tolerance matches input-deadzone semantics better than an arbitrary threshold.
 - Prefer a module-local `Random.new()` instance over `math.random` for new code that needs randomness. Each system owns its own stream — can't be polluted by an unrelated `math.randomseed` elsewhere, and can be deterministically seeded for tests. Use `rng:NextInteger(min, max)` / `rng:NextNumber()` / `rng:NextNumber(min, max)`. `math.random` is fine to leave in place in pre-existing modules unless you're already touching them.
+- Prefer `instance:AddTag(tag)` / `instance:RemoveTag(tag)` / `instance:HasTag(tag)` / `instance:GetTags()` over the `CollectionService:*` equivalents. The instance methods are first-class on `Instance` now; using them lets a file skip the `CollectionService = game:GetService(...)` import when it's the only reason for the service handle. Same semantics, less ceremony.
 - `Trove` conventions:
   - `return trove:WrapClean()` instead of `return function() trove:Destroy() end`.
   - Use `parent:Remove(subTrove)` to dispose a `Trove:Extend()`'d sub-trove. Calling `subTrove:Destroy()` cleans the children but leaves a dead reference accumulating in the parent.

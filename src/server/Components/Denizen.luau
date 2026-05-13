@@ -27,7 +27,6 @@
 	  PrimaryPart's assembly is handed to the server via `SetNetworkOwner(nil)`.
 ]=]
 
-local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 local Workspace = game:GetService("Workspace")
@@ -40,15 +39,18 @@ local t = require(ReplicatedStorage.Packages.t)
 local Behavior = require(ServerScriptService.Server.Behavior.Behavior)
 local AbilityServer = require(ServerScriptService.Server.Servers.AbilityServer)
 local CombatServer = require(ServerScriptService.Server.Servers.CombatServer)
-local InventoryServer = require(ServerScriptService.Server.Servers.InventoryServer)
+local LootServer = require(ServerScriptService.Server.Servers.LootServer)
 local AbilityTypes = require(ReplicatedStorage.Shared.Types.AbilityTypes)
 local AnimationDefs = require(ReplicatedStorage.Shared.Defs.AnimationDefs)
 local CombatTypes = require(ReplicatedStorage.Shared.Types.CombatTypes)
 local DamageTypes = require(ReplicatedStorage.Shared.Types.DamageTypes)
 local DenizenDefs = require(ReplicatedStorage.Shared.Defs.DenizenDefs)
+local LootShared = require(ReplicatedStorage.Shared.LootShared)
+local LootTypes = require(ReplicatedStorage.Shared.Types.LootTypes)
 
 type CombatSession = CombatTypes.CombatSession
 type Damage = DamageTypes.Damage
+type PlayerLoot = LootTypes.PlayerLoot
 
 type DenizenDef = DenizenDefs.DenizenDef
 
@@ -59,10 +61,6 @@ local GROUND_SENSOR_BUFFER = 5
 -- Out-of-combat regen rate, expressed as a fraction of MaxHealth per second. Denizens
 -- only regenerate while CombatSession is nil; in-combat regen is intentionally zero.
 local OUT_OF_COMBAT_REGEN_FRACTION = 0.25
--- Coin drop range awarded on death to each player who was in combat with the denizen.
--- Inclusive on both ends. Will move to the def when per-kind drops matter.
-local COIN_DROP_MIN = 5
-local COIN_DROP_MAX = 15
 
 local Denizen = Component.new({
 	Tag = "Denizen",
@@ -419,16 +417,21 @@ function Denizen:SetHealth(value: number)
 end
 
 --[=[
-	Kills the denizen: pays out coins to every player that was in a combat session with
-	it, then hands the model off to the `DenizenCorpse` component (via tag swap) so the
-	def's death animation, if any, can play past our own lifecycle. Removing the
-	`Denizen` tag triggers our `Stop` — which tears down `ControllerManager`, behavior,
-	`Comm`, and the combat registration. The `AnimationController`/`Animator` are
-	children of the model proper (not owned by our `Trove`), so they survive into the
-	corpse phase.
+	Kills the denizen: rolls the def's `LootTable` once per eligible player (every
+	player in our combat session at time of death), registers the resulting per-
+	player loot map with `LootServer` keyed by our model, then hands the model off
+	to the `DenizenCorpse` component (via tag swap) so the def's death animation,
+	if any, can play past our own lifecycle. `DenizenCorpse` resolves the pending
+	drop when the body finishes despawning, materializing a `LootBag` at the
+	corpse's location.
+
+	Removing the `Denizen` tag triggers our `Stop` — which tears down
+	`ControllerManager`, behavior, `Comm`, and the combat registration. The
+	`AnimationController`/`Animator` are children of the model proper (not owned
+	by our `Trove`), so they survive into the corpse phase.
 
 	Idempotent — guarded by `IsDead` so a flurry of damage hits in one frame can't
-	double-pay the loot.
+	double-roll the loot.
 	@within Denizen
 ]=]
 function Denizen:Die()
@@ -437,21 +440,25 @@ function Denizen:Die()
 	end
 	self.IsDead = true
 
-	-- Snapshot rewarded players before disengaging — `Disengage` (run from `Stop`) ends
-	-- the session and clears `Members`, so we'd see an empty list afterwards.
-	local rewardedPlayers: { Player } = {}
+	-- Roll loot before disengaging — `Disengage` (run from `Stop`) clears the
+	-- session's `Members`, so we'd see an empty eligibility list afterwards.
+	local lootTable = self.Def.LootTable
 	local session = self.CombatSession
-	if session ~= nil then
+	if lootTable ~= nil and session ~= nil then
+		local playerLoot: { [Player]: PlayerLoot } = {}
 		for member in session.Members do
-			if member.Player ~= nil then
-				table.insert(rewardedPlayers, member.Player)
+			local player = member.Player
+			if player == nil then
+				continue
+			end
+			local roll = LootShared.RollLootTable(lootTable)
+			if #roll > 0 then
+				playerLoot[player] = roll
 			end
 		end
-	end
-
-	for _, player in rewardedPlayers do
-		local count = math.random(COIN_DROP_MIN, COIN_DROP_MAX)
-		InventoryServer.AddItem(player, "Coin", count)
+		if next(playerLoot) ~= nil then
+			LootServer.RegisterPendingDrop(self.Instance, playerLoot)
+		end
 	end
 
 	-- Hard-stop our active tracks before handing off so the death animation plays
@@ -460,8 +467,8 @@ function Denizen:Die()
 	-- `task.defer` isn't guaranteed.
 	self:AnimationStopHardAll()
 
-	CollectionService:RemoveTag(self.Instance, "Denizen")
-	CollectionService:AddTag(self.Instance, "DenizenCorpse")
+	self.Instance:RemoveTag("Denizen")
+	self.Instance:AddTag("DenizenCorpse")
 end
 
 --[=[

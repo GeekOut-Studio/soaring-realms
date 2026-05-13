@@ -175,7 +175,7 @@ function DenizenClient:RegisterBillboard()
 	Billboards.Set(self.BillboardKey, {
 		Adornee = adornee,
 		Native = {
-			Size = UDim2.fromScale(4, 0.6),
+			Size = UDim2.fromScale(4, 0.2),
 			StudsOffsetWorldSpace = Vector3.new(0, 3, 0),
 		},
 		Render = function()

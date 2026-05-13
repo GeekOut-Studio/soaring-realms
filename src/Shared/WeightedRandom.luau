@@ -9,6 +9,8 @@
 
 local WeightedRandom = {}
 
+local rng = Random.new()
+
 --[=[
 	Returns one entry from `entries`, chosen with probability proportional to its
 	`Weight` field. Entries with `Weight <= 0` are skipped. Errors when `entries`
@@ -27,7 +29,7 @@ function WeightedRandom.Pick<T>(entries: { T }): T
 	end
 	assert(total > 0, "WeightedRandom.Pick: entries is empty or all weights non-positive")
 
-	local roll = math.random() * total
+	local roll = rng:NextNumber(0, total)
 	local acc = 0
 	for _, entry in entries do
 		local weight = (entry :: any).Weight :: number

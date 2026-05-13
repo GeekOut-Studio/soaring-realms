@@ -14,6 +14,7 @@ local Defs: { [string]: number } = {
 	ImpIdle = 135155347546291,
 	ImpRun = 113406620650152,
 	ImpAttack = 79492069922415,
+	ImpDeath = 100687545458677,
 }
 
 local function transform(defs: { [string]: number }): { [string]: Animation }

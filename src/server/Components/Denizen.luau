@@ -27,6 +27,7 @@
 	  PrimaryPart's assembly is handed to the server via `SetNetworkOwner(nil)`.
 ]=]
 
+local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 local Workspace = game:GetService("Workspace")
@@ -412,21 +413,28 @@ end
 function Denizen:SetHealth(value: number)
 	self.Health = math.clamp(value, 0, self.MaxHealth)
 	self.HealthProperty:Set(self.Health)
-	if self.Health <= 0 and not self.IsDead then
+	if self.Health <= 0 then
 		self:Die()
 	end
 end
 
 --[=[
 	Kills the denizen: pays out coins to every player that was in a combat session with
-	it, then destroys the model. The model's destruction triggers the component's `Stop`,
-	which in turn `Disengage`s any remaining combat session reference.
+	it, then hands the model off to the `DenizenCorpse` component (via tag swap) so the
+	def's death animation, if any, can play past our own lifecycle. Removing the
+	`Denizen` tag triggers our `Stop` — which tears down `ControllerManager`, behavior,
+	`Comm`, and the combat registration. The `AnimationController`/`Animator` are
+	children of the model proper (not owned by our `Trove`), so they survive into the
+	corpse phase.
 
 	Idempotent — guarded by `IsDead` so a flurry of damage hits in one frame can't
 	double-pay the loot.
 	@within Denizen
 ]=]
 function Denizen:Die()
+	if self.IsDead then
+		return
+	end
 	self.IsDead = true
 
 	-- Snapshot rewarded players before disengaging — `Disengage` (run from `Stop`) ends
@@ -446,7 +454,14 @@ function Denizen:Die()
 		InventoryServer.AddItem(player, "Coin", count)
 	end
 
-	self.Instance:Destroy()
+	-- Hard-stop our active tracks before handing off so the death animation plays
+	-- cleanly. Our own `Stop` would also call this, but the relative ordering of
+	-- Stop vs. the corpse component's Construct under the Component package's
+	-- `task.defer` isn't guaranteed.
+	self:AnimationStopHardAll()
+
+	CollectionService:RemoveTag(self.Instance, "Denizen")
+	CollectionService:AddTag(self.Instance, "DenizenCorpse")
 end
 
 --[=[

@@ -19,10 +19,12 @@ local ItemStatsTypes = require(ReplicatedStorage.Shared.Types.ItemStatsTypes)
 	@within DenizenDefs
 	@field Idle string? -- `AnimationDefs` key looped over the denizen's lifetime.
 	@field Run string? -- `AnimationDefs` key played whenever the denizen is moving. Layers over `Idle` via `AnimationPriority`.
+	@field Death string? -- `AnimationDefs` key played once on death by the `DenizenCorpse` component before the model is destroyed. Expected to be non-looping.
 ]=]
 export type Animations = {
 	Idle: string?,
 	Run: string?,
+	Death: string?,
 }
 
 --[=[
@@ -77,6 +79,7 @@ local Defs = {
 		Animations = {
 			Idle = "ImpIdle",
 			Run = "ImpRun",
+			Death = "ImpDeath",
 		},
 		Team = "Enemies",
 		CombatStats = {

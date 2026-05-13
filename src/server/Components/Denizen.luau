@@ -31,6 +31,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 local Workspace = game:GetService("Workspace")
 
+local Comm = require(ReplicatedStorage.Packages.Comm)
 local Component = require(ReplicatedStorage.Packages.Component)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local t = require(ReplicatedStorage.Packages.t)
@@ -155,6 +156,14 @@ local Denizen = Component.new({
 	combat. Read by behavior states and the `InCombat` predicate.
 ]=]
 
+--[=[
+	@prop Comm any
+	@within Denizen
+	Per-instance `Comm.ServerComm`. Exposes `MaxHealth`, `Health`, and `InCombat` so
+	clients (e.g. `DenizenClient`) can render an overhead health bar without each
+	denizen needing its own ad-hoc remote setup.
+]=]
+
 function Denizen:Construct()
 	local kind = self.Instance:GetAttribute("DenizenKind")
 	local name = self.Instance:GetFullName()
@@ -171,6 +180,12 @@ function Denizen:Construct()
 
 	self.MaxHealth = self.Def.MaxHealth
 	self.Health = self.MaxHealth
+
+	self.Comm = Comm.ServerComm.new(self.Instance, "Denizen")
+	self.Trove:Add(self.Comm)
+	self.MaxHealthProperty = self.Comm:CreateProperty("MaxHealth", self.MaxHealth)
+	self.HealthProperty = self.Comm:CreateProperty("Health", self.Health)
+	self.InCombatProperty = self.Comm:CreateProperty("InCombat", false)
 
 	self.MoveTarget = nil :: Vector3?
 	self.FacingTarget = nil :: Vector3?
@@ -340,6 +355,11 @@ function Denizen:HeartbeatUpdate(dt: number)
 		self:SetHealth(self.Health + self.MaxHealth * OUT_OF_COMBAT_REGEN_FRACTION * dt)
 	end
 
+	local inCombat = self.CombatSession ~= nil
+	if inCombat ~= self.InCombatProperty:Get() then
+		self.InCombatProperty:Set(inCombat)
+	end
+
 	local target = self.MoveTarget
 	if target ~= nil then
 		local position = self:GetCFrame().Position
@@ -391,6 +411,7 @@ end
 ]=]
 function Denizen:SetHealth(value: number)
 	self.Health = math.clamp(value, 0, self.MaxHealth)
+	self.HealthProperty:Set(self.Health)
 	if self.Health <= 0 and not self.IsDead then
 		self:Die()
 	end

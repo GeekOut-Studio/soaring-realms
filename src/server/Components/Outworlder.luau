@@ -186,8 +186,8 @@ function Outworlder:Start()
 	OutworlderShared.ApplyMode(self.ControllerManager, self.MovementMode)
 	self.MaxStaminaProperty:SetFor(self.Player, self.MaxStamina)
 	self.StaminaProperty:SetFor(self.Player, self.Stamina)
-	self.MaxHealthProperty:SetFor(self.Player, self.MaxHealth)
-	self.HealthProperty:SetFor(self.Player, self.Health)
+	self.MaxHealthProperty:Set(self.MaxHealth)
+	self.HealthProperty:Set(self.Health)
 end
 
 function Outworlder:Stop()
@@ -682,7 +682,7 @@ function Outworlder:HeartbeatUpdate(dt: number)
 	self.HealthSendAccumulator += dt
 	if self.HealthSendAccumulator >= HealthTypes.HealthReplicationInterval then
 		self.HealthSendAccumulator = 0
-		self.HealthProperty:SetFor(self.Player, self.Health)
+		self.HealthProperty:Set(self.Health)
 	end
 
 	local inCombat = self.CombatSession ~= nil
@@ -701,9 +701,9 @@ function Outworlder:GetHealth(): number
 end
 
 --[=[
-	Sets the character's authoritative health, clamped to `[0, MaxHealth]`, and pushes the
-	new value to the owning client immediately (bypassing the replication throttle so a
-	damage hit feels instant on the HUD). On reaching zero, kills the character via the
+	Sets the character's authoritative health, clamped to `[0, MaxHealth]`, and broadcasts
+	the new value immediately (bypassing the replication throttle so a damage hit feels
+	instant on every client's HUD/overhead bar). On reaching zero, kills the character via the
 	Humanoid so the default respawn pipeline takes over. Implements `DamageTarget`.
 	@within Outworlder
 	@param value number
@@ -711,7 +711,7 @@ end
 function Outworlder:SetHealth(value: number)
 	self.Health = math.clamp(value, 0, self.MaxHealth)
 	self.HealthSendAccumulator = 0
-	self.HealthProperty:SetFor(self.Player, self.Health)
+	self.HealthProperty:Set(self.Health)
 	if self.Health <= 0 then
 		local humanoid = self.Instance:FindFirstChildOfClass("Humanoid")
 		if humanoid ~= nil then

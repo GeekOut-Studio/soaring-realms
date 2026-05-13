@@ -10,8 +10,15 @@
 	   property. The actual physical effect of a mode (e.g. `BaseMoveSpeed`) is delegated to
 	   `OutworlderShared.ApplyMode` so client-prediction and server-authoritative paths apply
 	   the same logic.
+
+	The Comm property handles (`HealthProperty`, `MaxHealthProperty`,
+	`InCombatProperty`, etc.) are part of the public surface: external
+	consumers (the HUD, billboard renderers, other client systems) may read
+	them via `:Get()` or subscribe with `Observing.observeCommProperty`. Treat
+	renames or removals as breaking changes.
 ]=]
 
+local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -20,20 +27,26 @@ local Workspace = game:GetService("Workspace")
 
 local Comm = require(ReplicatedStorage.Packages.Comm)
 local Component = require(ReplicatedStorage.Packages.Component)
+local React = require(ReplicatedStorage.Packages.React)
 local Signal = require(ReplicatedStorage.Packages.Signal)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local AbilityClient = require(ReplicatedStorage.Shared.Clients.AbilityClient)
 local AbilityTypes = require(ReplicatedStorage.Shared.Types.AbilityTypes)
+local Billboards = require(ReplicatedStorage.Shared.React.Billboards.Billboards)
 local DownloadClient = require(ReplicatedStorage.Shared.Clients.DownloadClient)
+local CombatantBillboard = require(ReplicatedStorage.Shared.React.Billboards.CombatantBillboard)
 local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
 local ActionTypes = require(ReplicatedStorage.Shared.Types.ActionTypes)
 local EquipmentTypes = require(ReplicatedStorage.Shared.Types.EquipmentTypes)
-local HealthTypes = require(ReplicatedStorage.Shared.Types.HealthTypes)
 local InventoryTypes = require(ReplicatedStorage.Shared.Types.InventoryTypes)
 local MovementTypes = require(ReplicatedStorage.Shared.Types.MovementTypes)
 local Observing = require(ReplicatedStorage.Shared.Observing)
 local OutworlderShared = require(ReplicatedStorage.Shared.Components.OutworlderShared)
+
+local e = React.createElement
+
+local BAR_VISIBILITY_SECONDS = 5
 
 type EquipmentSlot = EquipmentTypes.EquipmentSlot
 type Equipment = EquipmentTypes.Equipment
@@ -76,6 +89,27 @@ local OutworlderClient = Component.new({
 	Ancestors = { Workspace },
 })
 
+--[=[
+	@prop HealthProperty any
+	@within OutworlderClient
+	Comm property mirroring the server's authoritative `Outworlder.Health`.
+	Public: external consumers may read via `:Get()` or subscribe with
+	`Observing.observeCommProperty`.
+]=]
+
+--[=[
+	@prop MaxHealthProperty any
+	@within OutworlderClient
+	Comm property mirroring `Outworlder.MaxHealth`. Public — see `HealthProperty`.
+]=]
+
+--[=[
+	@prop InCombatProperty any
+	@within OutworlderClient
+	Comm property mirroring whether the outworlder currently has a `CombatSession`
+	on the server. Public — see `HealthProperty`.
+]=]
+
 type SlotState = {
 	Trove: any,
 	ItemKind: string,
@@ -92,14 +126,16 @@ function OutworlderClient:Construct()
 	self.MaxStaminaChanged = self.Trove:Construct(Signal) :: Signal.Signal<number>
 	self.Stamina = self.MaxStamina
 	self.StaminaChanged = self.Trove:Construct(Signal) :: Signal.Signal<number>
-	self.MaxHealth = HealthTypes.DefaultMaxHealth
-	self.MaxHealthChanged = self.Trove:Construct(Signal) :: Signal.Signal<number>
-	self.Health = self.MaxHealth
-	self.HealthChanged = self.Trove:Construct(Signal) :: Signal.Signal<number>
 	self.ActionProgress = nil :: ActionProgress?
 	self.ActionProgressChanged = self.Trove:Construct(Signal) :: Signal.Signal<ActionProgress?>
 	self.WasMoving = false
 	self.FaceTowardsLoopTrove = nil :: any
+
+	self.LastReplicatedHealth = nil :: number?
+	self.LastDamagedAt = nil :: number?
+	self.BillboardKey = `Outworlder:{HttpService:GenerateGUID(false)}`
+	self.BillboardActive = false
+	self.ExpireThread = nil :: thread?
 
 	self.Comm = Comm.ClientComm.new(self.Instance, false, "Outworlder")
 	self.Trove:Add(self.Comm)
@@ -109,6 +145,7 @@ function OutworlderClient:Construct()
 	self.StaminaProperty = self.Comm:GetProperty("Stamina")
 	self.MaxHealthProperty = self.Comm:GetProperty("MaxHealth")
 	self.HealthProperty = self.Comm:GetProperty("Health")
+	self.InCombatProperty = self.Comm:GetProperty("InCombat")
 	self.ActionProgressProperty = self.Comm:GetProperty("ActionProgress")
 	self.ActionFailedSignal = self.Comm:GetSignal("ActionFailed")
 	self.FaceTowardsSignal = self.Comm:GetSignal("FaceTowards")
@@ -142,29 +179,21 @@ function OutworlderClient:SetMaxStamina(value: number)
 end
 
 --[=[
-	Updates the replicated health and fires `HealthChanged` if the value actually changed.
+	`HealthProperty` observer. The first replication just seeds
+	`LastReplicatedHealth`; subsequent decreases stamp `LastDamagedAt` and
+	refresh billboard visibility. The component does not cache `Health` —
+	consumers should read `HealthProperty:Get()` / subscribe via
+	`Observing.observeCommProperty(HealthProperty, ...)` directly.
 	@within OutworlderClient
 	@param value number
 ]=]
-function OutworlderClient:SetHealth(value: number)
-	if self.Health == value then
-		return
+function OutworlderClient:HandleHealth(value: number)
+	local previous = self.LastReplicatedHealth
+	self.LastReplicatedHealth = value
+	if previous ~= nil and value < previous then
+		self.LastDamagedAt = os.clock()
+		self:RefreshBillboardVisibility()
 	end
-	self.Health = value
-	self.HealthChanged:Fire(value)
-end
-
---[=[
-	Updates the replicated max health and fires `MaxHealthChanged` if the value changed.
-	@within OutworlderClient
-	@param value number
-]=]
-function OutworlderClient:SetMaxHealth(value: number)
-	if self.MaxHealth == value then
-		return
-	end
-	self.MaxHealth = value
-	self.MaxHealthChanged:Fire(value)
 end
 
 function OutworlderClient:Start()
@@ -179,13 +208,99 @@ function OutworlderClient:Start()
 		self:ReconcileEquipment(equipment)
 	end))
 
+	self.Trove:Add(Observing.observeCommProperty(self.HealthProperty, function(value: number)
+		self:HandleHealth(value)
+	end))
+
+	self.Trove:Add(Observing.observeCommProperty(self.InCombatProperty, function(_value: boolean)
+		self:RefreshBillboardVisibility()
+	end))
+
 	if self.IsLocalPlayer then
 		self:SetupLocalControls()
 	end
 end
 
 function OutworlderClient:Stop()
+	if self.ExpireThread ~= nil then
+		task.cancel(self.ExpireThread)
+		self.ExpireThread = nil
+	end
+	if self.BillboardActive then
+		Billboards.Remove(self.BillboardKey)
+		self.BillboardActive = false
+	end
 	self.Trove:Destroy()
+end
+
+--[=[
+	Recomputes whether the overhead health bar should be visible and
+	(un)registers a `Billboards` entry accordingly. Visible whenever the
+	character is in combat or has taken damage within
+	`BAR_VISIBILITY_SECONDS`. Schedules a delayed re-check when visibility
+	hangs on a damage-tail timeout.
+	@within OutworlderClient
+]=]
+function OutworlderClient:RefreshBillboardVisibility()
+	local now = os.clock()
+	local inCombat = self.InCombatProperty:Get() :: boolean
+	local damagedRecently = self.LastDamagedAt ~= nil and (now - self.LastDamagedAt) < BAR_VISIBILITY_SECONDS
+	local shouldShow = inCombat or damagedRecently
+
+	if shouldShow then
+		if not self.BillboardActive then
+			self:RegisterBillboard()
+		end
+		if self.ExpireThread ~= nil then
+			task.cancel(self.ExpireThread)
+			self.ExpireThread = nil
+		end
+		if not inCombat and self.LastDamagedAt ~= nil then
+			local remaining = BAR_VISIBILITY_SECONDS - (now - self.LastDamagedAt)
+			self.ExpireThread = task.delay(remaining, function()
+				self.ExpireThread = nil
+				self:RefreshBillboardVisibility()
+			end)
+		end
+	else
+		if self.BillboardActive then
+			Billboards.Remove(self.BillboardKey)
+			self.BillboardActive = false
+		end
+		if self.ExpireThread ~= nil then
+			task.cancel(self.ExpireThread)
+			self.ExpireThread = nil
+		end
+	end
+end
+
+--[=[
+	Adds the overhead health bar billboard entry. Adornee resolves to the
+	character's `Head` when present, falling back to `HumanoidRootPart`.
+	@within OutworlderClient
+]=]
+function OutworlderClient:RegisterBillboard()
+	local adornee = self.Instance:FindFirstChild("Head") :: BasePart?
+	if adornee == nil then
+		adornee = self.Instance:FindFirstChild("HumanoidRootPart") :: BasePart?
+	end
+	if adornee == nil then
+		return
+	end
+	Billboards.Set(self.BillboardKey, {
+		Adornee = adornee,
+		Native = {
+			Size = UDim2.fromScale(4, 0.6),
+			StudsOffsetWorldSpace = Vector3.new(0, 2, 0),
+		},
+		Render = function()
+			return e(CombatantBillboard, {
+				HealthProperty = self.HealthProperty,
+				MaxHealthProperty = self.MaxHealthProperty,
+			})
+		end,
+	})
+	self.BillboardActive = true
 end
 
 --[=[
@@ -201,14 +316,6 @@ function OutworlderClient:SetupLocalControls()
 
 	self.Trove:Add(Observing.observeCommProperty(self.StaminaProperty, function(stamina: number)
 		self:SetStamina(stamina)
-	end))
-
-	self.Trove:Add(Observing.observeCommProperty(self.MaxHealthProperty, function(value: number)
-		self:SetMaxHealth(value)
-	end))
-
-	self.Trove:Add(Observing.observeCommProperty(self.HealthProperty, function(health: number)
-		self:SetHealth(health)
 	end))
 
 	self.Trove:Add(Observing.observeCommProperty(self.ActionProgressProperty, function(progress: ActionProgress?)

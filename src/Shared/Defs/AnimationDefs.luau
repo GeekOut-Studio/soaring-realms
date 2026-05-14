@@ -8,6 +8,7 @@ local Defs: { [string]: number } = {
 	CrouchIdle = 90752562165133,
 	CrouchWalk = 96011308580698,
 	ToolOverheadSwing = 134572391725643,
+	ToolHorizontalSwing = 106490689991440,
 	ToolShoulderedIdle = 125738314234655,
 	WeaponOneHandedIdle = 507768375,
 	WeaponOneHandedHorizontalSwing = 119428631236448,

@@ -43,6 +43,7 @@ local InventoryServer = require(ServerScriptService.Server.Servers.InventoryServ
 local RequirementsServer = require(ServerScriptService.Server.Servers.RequirementsServer)
 local SkillServer = require(ServerScriptService.Server.Servers.SkillServer)
 local Outworlder = require(ServerScriptService.Server.Components.Outworlder)
+local ActionPrompts = require(ReplicatedStorage.Shared.ActionPrompts)
 local ActionTypes = require(ReplicatedStorage.Shared.Types.ActionTypes)
 local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
 local ItemStatsTypes = require(ReplicatedStorage.Shared.Types.ItemStatsTypes)
@@ -56,7 +57,7 @@ type OreNodeDef = OreNodeDefs.OreNodeDef
 type Drops = OreNodeDefs.Drops
 type MiningStats = ItemStatsTypes.MiningStats
 
-local BONUS_DURATION = 15
+local BONUS_DURATION = 45
 local RECHARGE_DURATION = 60
 local PROMPT_DISTANCE = 7
 
@@ -135,6 +136,10 @@ local function makePrompt(actionText: string, objectText: string, parent: Instan
 	prompt.HoldDuration = 0
 	prompt.MaxActivationDistance = PROMPT_DISTANCE
 	prompt.RequiresLineOfSight = false
+	prompt:AddTag(ActionPrompts.Tag)
+	-- Default wanting-on; callers override for initially-hidden entries (bonus
+	-- prompts). See `ActionPrompts` for the layered-gate contract.
+	ActionPrompts.SetServerEnabled(prompt, true)
 	prompt.Parent = parent
 	return prompt
 end
@@ -228,7 +233,7 @@ function OreNode:Construct()
 
 		local root = makeRootPart("Root", pivot, child)
 		local prompt = makePrompt("Mine", self.Def.Name, root)
-		prompt.Enabled = false
+		ActionPrompts.SetServerEnabled(prompt, false)
 		local entry: NodeEntry = {
 			Key = `Bonus{index}`,
 			Root = root,
@@ -493,7 +498,7 @@ function OreNode:EnterBonus()
 		entry.PlayerProgress = {}
 		assert(entry.Model ~= nil, "bonus entry missing model")
 		entry.Model.Parent = self.Instance
-		entry.Prompt.Enabled = true
+		ActionPrompts.SetServerEnabled(entry.Prompt, true)
 	end
 	self:CancelStateThread()
 	self.StateThread = task.delay(BONUS_DURATION, function()
@@ -512,7 +517,7 @@ function OreNode:EnterDepleted()
 	self.State = "Depleted"
 	self.StateProperty:Set(self.State)
 	for _, entry in self.BonusEntries do
-		entry.Prompt.Enabled = false
+		ActionPrompts.SetServerEnabled(entry.Prompt, false)
 		assert(entry.Model ~= nil, "bonus entry missing model")
 		entry.Model.Parent = nil
 	end

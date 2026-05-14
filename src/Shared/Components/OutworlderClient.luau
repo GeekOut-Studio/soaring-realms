@@ -110,6 +110,15 @@ local OutworlderClient = Component.new({
 	on the server. Public — see `HealthProperty`.
 ]=]
 
+--[=[
+	@prop InActionProperty any
+	@within OutworlderClient
+	Comm property mirroring whether the outworlder is currently executing an
+	`Action` on the server (mining, woodcutting, etc.). Public — see
+	`HealthProperty`. `ActionPromptClient` consumes this to hide ActionPrompts
+	in the world while the local player is mid-action.
+]=]
+
 type SlotState = {
 	Trove: any,
 	ItemKind: string,
@@ -146,6 +155,7 @@ function OutworlderClient:Construct()
 	self.MaxHealthProperty = self.Comm:GetProperty("MaxHealth")
 	self.HealthProperty = self.Comm:GetProperty("Health")
 	self.InCombatProperty = self.Comm:GetProperty("InCombat")
+	self.InActionProperty = self.Comm:GetProperty("InAction")
 	self.ActionProgressProperty = self.Comm:GetProperty("ActionProgress")
 	self.ActionFailedSignal = self.Comm:GetSignal("ActionFailed")
 	self.FaceTowardsSignal = self.Comm:GetSignal("FaceTowards")

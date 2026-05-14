@@ -34,6 +34,9 @@ local Defs = {
 	BarCopper = {
 		Name = "Copper Bar",
 	},
+	LogPoplar = {
+		Name = "Poplar Log",
+	},
 	SwordCopper = {
 		Name = "Copper Sword",
 		EquipSlots = { "MainHandMelee" },
@@ -57,6 +60,18 @@ local Defs = {
 		IdleAnimation = "ToolShoulderedIdle",
 		Stats = {
 			Mining = {
+				Interval = 1.75,
+				Power = { Min = 0.9, Max = 1.1 },
+			},
+		},
+	},
+	AxeCopper = {
+		Name = "Copper Axe",
+		EquipSlots = { "MainHandMelee" },
+		AssetPath = "Base/Tools/AxeCopper",
+		IdleAnimation = "ToolShoulderedIdle",
+		Stats = {
+			Woodcutting = {
 				Interval = 1.75,
 				Power = { Min = 0.9, Max = 1.1 },
 			},

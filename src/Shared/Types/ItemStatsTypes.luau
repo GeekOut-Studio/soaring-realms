@@ -36,6 +36,17 @@ export type MiningStats = {
 }
 
 --[=[
+	@interface WoodcuttingStats
+	@within ItemStatsTypes
+	@field Interval number -- Seconds between successive swings.
+	@field Power PowerRange -- Per-swing damage range applied to tree-node progress and cut meters. One value is rolled per swing and used for both meters.
+]=]
+export type WoodcuttingStats = {
+	Interval: number,
+	Power: PowerRange,
+}
+
+--[=[
 	@interface CombatStats
 	@within ItemStatsTypes
 	@field Interval number -- Seconds between successive attacks.
@@ -56,10 +67,12 @@ export type CombatStats = {
 	@interface Stats
 	@within ItemStatsTypes
 	@field Mining MiningStats? -- Present on mining tools (pickaxes).
+	@field Woodcutting WoodcuttingStats? -- Present on woodcutting tools (axes).
 	@field Combat CombatStats? -- Present on weapons.
 ]=]
 export type Stats = {
 	Mining: MiningStats?,
+	Woodcutting: WoodcuttingStats?,
 	Combat: CombatStats?,
 }
 

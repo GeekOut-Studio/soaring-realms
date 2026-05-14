@@ -22,6 +22,7 @@ end
 
 -- initialize the client
 local AbilityClient = require(ReplicatedStorage.Shared.Clients.AbilityClient)
+local ActionPromptClient = require(ReplicatedStorage.Shared.Clients.ActionPromptClient)
 local DownloadClient = require(ReplicatedStorage.Shared.Clients.DownloadClient)
 local EquipmentClient = require(ReplicatedStorage.Shared.Clients.EquipmentClient)
 local GuiClient = require(ReplicatedStorage.Shared.Clients.GuiClient)
@@ -39,6 +40,7 @@ EquipmentClient.Init()
 SkillClient.Init()
 AbilityClient.Init()
 HotbarClient.Init()
+ActionPromptClient.Init()
 
 for _, component in ReplicatedStorage.Shared.Components:GetChildren() do
 	require(component)

@@ -27,7 +27,7 @@ local merge = Sift.Dictionary.merge
 
 local DEFAULTS = {
 	Size = UDim2.fromScale(4, 1),
-	StudsOffsetWorldSpace = Vector3.new(0, 3, 0),
+	StudsOffset = Vector3.new(0, 3, 0),
 	LightInfluence = 0,
 	AlwaysOnTop = true,
 	MaxDistance = 60,
@@ -51,7 +51,7 @@ local function BillboardsHost(): any
 
 	local children: { [string]: any } = {}
 	for key, entry in billboards do
-		children[key] = e("BillboardGui", merge(merge(DEFAULTS, entry.Native or {}), { Adornee = entry.Adornee }), {
+		children[key] = e("BillboardGui", merge(DEFAULTS, entry.Native or {}, { Adornee = entry.Adornee }), {
 			Content = entry.Render(),
 		})
 	end

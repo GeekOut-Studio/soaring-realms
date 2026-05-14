@@ -140,6 +140,7 @@ function Outworlder:Construct()
 	self.MaxHealthProperty = self.Comm:CreateProperty("MaxHealth", self.MaxHealth)
 	self.HealthProperty = self.Comm:CreateProperty("Health", self.MaxHealth)
 	self.InCombatProperty = self.Comm:CreateProperty("InCombat", false)
+	self.InActionProperty = self.Comm:CreateProperty("InAction", false)
 	self.ActionProgressProperty = self.Comm:CreateProperty("ActionProgress", nil)
 	self.ActionFailedSignal = self.Comm:CreateSignal("ActionFailed")
 	self.FaceTowardsSignal = self.Comm:CreateSignal("FaceTowards")
@@ -193,7 +194,7 @@ end
 function Outworlder:Stop()
 	if self.CurrentAction ~= nil then
 		self.CurrentAction:Stop("Interrupted")
-		self.CurrentAction = nil
+		self:SetCurrentAction(nil)
 	end
 	self:AnimationStopHardAll()
 	self.Trove:Destroy()
@@ -301,6 +302,18 @@ function Outworlder:GetCombatStats(slot: EquipmentTypes.EquipmentSlot): CombatSt
 end
 
 --[=[
+	Updates `self.CurrentAction` and mirrors the in-action flag to the `InAction`
+	Comm property. Consolidates the assignment so every entry/exit point keeps
+	the replicated state in lockstep.
+	@within Outworlder
+	@param action Action?
+]=]
+function Outworlder:SetCurrentAction(action: Action?)
+	self.CurrentAction = action
+	self.InActionProperty:Set(action ~= nil)
+end
+
+--[=[
 	Begins executing `action`, interrupting any action already in progress.
 	@within Outworlder
 	@param action Action
@@ -309,7 +322,7 @@ function Outworlder:StartAction(action: Action)
 	if self.CurrentAction ~= nil then
 		self.CurrentAction:Stop("Interrupted")
 	end
-	self.CurrentAction = action
+	self:SetCurrentAction(action)
 	local start = action.Start
 	if start ~= nil then
 		start(action)
@@ -361,7 +374,7 @@ end
 function Outworlder:StopCurrentAction(reason: StopReason?)
 	if self.CurrentAction ~= nil then
 		self.CurrentAction:Stop(if reason ~= nil then reason else "Interrupted")
-		self.CurrentAction = nil
+		self:SetCurrentAction(nil)
 	end
 end
 
@@ -625,17 +638,17 @@ function Outworlder:HeartbeatUpdate(dt: number)
 
 	if self.CurrentAction ~= nil and not self.CurrentAction.AllowsMovement and (isMoving or not isGrounded) then
 		self.CurrentAction:Stop("Interrupted")
-		self.CurrentAction = nil
+		self:SetCurrentAction(nil)
 	end
 
 	if self.CurrentAction ~= nil then
 		local result = self.CurrentAction:Update(dt)
 		if result == "Complete" then
 			self.CurrentAction:Stop("Completed")
-			self.CurrentAction = nil
+			self:SetCurrentAction(nil)
 		elseif result == "Fail" then
 			self.CurrentAction:Stop("Failed")
-			self.CurrentAction = nil
+			self:SetCurrentAction(nil)
 		end
 	end
 

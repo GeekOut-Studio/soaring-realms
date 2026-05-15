@@ -8,8 +8,12 @@
 	- The stump always carries a proximity prompt that starts a looping woodcutting
 	  action on the activating player's `Outworlder`. Stump hits grant 1× progress
 	  and contribute to a shared cut meter.
-	- Filling the cut meter advances the node to `Bonus` state: the `Trunk` part
-	  snaps to a fallen pose (its `BaseAttachment.WorldCFrame` aligned to
+	- Filling the cut meter advances the node to `Falling` state for a brief
+	  `FALLING_DURATION` window: the `TreeFall1` sound plays from the stump and the
+	  cut meter stops accumulating, but the stump prompt and any in-progress
+	  choppers continue unaffected.
+	- After the falling window the node transitions to `Bonus` state: the `Trunk`
+	  part snaps to a fallen pose (its `BaseAttachment.WorldCFrame` aligned to
 	  `Stump.FallenTrunkAttachment.WorldCFrame`), the `Top` part is unparented, and
 	  the trunk's own prompt becomes active. Trunk hits grant 2× progress and do
 	  not contribute to the cut meter.
@@ -60,13 +64,14 @@ type WoodcuttingStats = ItemStatsTypes.WoodcuttingStats
 
 local BONUS_DURATION = 45
 local RECHARGE_DURATION = 60
+local FALLING_DURATION = 2.2
 local PROMPT_DISTANCE = 7
 
 --[=[
-	@type State "Normal" | "Bonus" | "Depleted"
+	@type State "Normal" | "Falling" | "Bonus" | "Depleted"
 	@within TreeNode
 ]=]
-type State = "Normal" | "Bonus" | "Depleted"
+type State = "Normal" | "Falling" | "Bonus" | "Depleted"
 
 --[=[
 	@interface NodeEntry
@@ -449,10 +454,38 @@ function TreeNode:OnHit(player: Player, entry: NodeEntry, stats: WoodcuttingStat
 		self.CutProgress += rolled / def.CutHealth
 		if self.CutProgress >= 1 then
 			self.CutProgress = 0
-			self:EnterBonus()
+			self:EnterFalling()
 		end
 		self.CutProperty:Set(self.CutProgress)
 	end
+end
+
+--[=[
+	Transitions to `Falling` state. Plays the tree-fall sound from the stump and
+	schedules the visual `Bonus` transition `FALLING_DURATION` seconds later. The
+	`OnHit` cut-meter gate (`self.State == "Normal"`) naturally stops the meter
+	from accumulating during this window; the stump prompt and any in-progress
+	choppers are untouched and continue to swing.
+	@within TreeNode
+]=]
+function TreeNode:EnterFalling()
+	self.State = "Falling"
+	self.StateProperty:Set(self.State)
+
+	EffectServer.EffectAll("PlaySound", {
+		Target = self.Stump,
+		Kind = "TreeFall1",
+	})
+	EffectServer.EffectAll("TreeNodeFall", {
+		Model = self.Instance,
+		Duration = FALLING_DURATION,
+	})
+
+	self:CancelStateThread()
+	self.StateThread = task.delay(FALLING_DURATION, function()
+		self.StateThread = nil
+		self:EnterBonus()
+	end)
 end
 
 --[=[

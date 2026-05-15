@@ -38,6 +38,7 @@ local Component = require(ReplicatedStorage.Packages.Component)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local t = require(ReplicatedStorage.Packages.t)
 
+local EffectServer = require(ServerScriptService.Server.Servers.EffectServer)
 local EquipmentServer = require(ServerScriptService.Server.Servers.EquipmentServer)
 local InventoryServer = require(ServerScriptService.Server.Servers.InventoryServer)
 local RequirementsServer = require(ServerScriptService.Server.Servers.RequirementsServer)
@@ -426,6 +427,11 @@ function TreeNode:OnHit(player: Player, entry: NodeEntry, stats: WoodcuttingStat
 	local cutter = self.ActiveCutters[player]
 	assert(cutter ~= nil, "OnHit called for player with no active cutter")
 	local def = self.Def
+
+	EffectServer.EffectAll("PlaySound", {
+		Target = entry.Root,
+		Kind = `AxeHit{self.Random:NextInteger(1, 3)}`,
+	})
 	local woodcuttingLevel = SkillServer.GetSkills(player).Woodcutting.Level
 	local minPower, maxPower = SkillShared.Woodcutting.GetEffectivePower(stats, woodcuttingLevel)
 	local rolled = self.Random:NextNumber(minPower, maxPower)

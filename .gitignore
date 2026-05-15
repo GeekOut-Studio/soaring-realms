@@ -10,4 +10,7 @@ Packages
 ServerPackages
 wally.lock
 
-.claude
+.claude/settings.local.json
+
+# Local environment variables (secrets). Dot-source with `. .\.env.ps1` per session.
+.env.ps1

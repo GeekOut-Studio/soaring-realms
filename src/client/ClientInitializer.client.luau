@@ -24,6 +24,7 @@ end
 local AbilityClient = require(ReplicatedStorage.Shared.Clients.AbilityClient)
 local ActionPromptClient = require(ReplicatedStorage.Shared.Clients.ActionPromptClient)
 local DownloadClient = require(ReplicatedStorage.Shared.Clients.DownloadClient)
+local EffectClient = require(ReplicatedStorage.Shared.Clients.EffectClient)
 local EquipmentClient = require(ReplicatedStorage.Shared.Clients.EquipmentClient)
 local GuiClient = require(ReplicatedStorage.Shared.Clients.GuiClient)
 local HotbarClient = require(ReplicatedStorage.Shared.Clients.HotbarClient)
@@ -33,6 +34,7 @@ local TeleportClient = require(ReplicatedStorage.Shared.Clients.TeleportClient)
 local Cmdr = require(ReplicatedStorage:WaitForChild("CmdrClient")) :: any
 
 DownloadClient.Init()
+EffectClient.Init()
 GuiClient.Init()
 TeleportClient.Init()
 InventoryClient.Init()

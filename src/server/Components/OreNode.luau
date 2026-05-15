@@ -12,9 +12,12 @@
 	  contribute and grant 1× progress; bonus hits do not contribute and grant 2×.
 	- Each entry has a per-player progress meter that fills with that player's hits;
 	  on fill, the player receives an experience grant and a drop.
-	- Filling the break meter advances the node to `Bonus` state, surfacing the
-	  bonus child entries. After a fixed bonus duration the node enters `Depleted`,
-	  then after a recharge duration returns to `Normal`.
+	- Filling the break meter advances the node to `Breaking` state for a brief
+	  `BREAKING_DURATION` window: the break meter stops accumulating, but the
+	  center prompt and any in-progress miners continue unaffected.
+	- After the breaking window the node transitions to `Bonus` state, surfacing
+	  the bonus child entries. After a fixed bonus duration the node enters
+	  `Depleted`, then after a recharge duration returns to `Normal`.
 
 	The component expects a child structure of `Normal`, `Depleted`, and `Bonus`
 	(folder of `Bonus` models) on `self.Instance`. Only the currently active center
@@ -38,6 +41,7 @@ local Component = require(ReplicatedStorage.Packages.Component)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local t = require(ReplicatedStorage.Packages.t)
 
+local EffectServer = require(ServerScriptService.Server.Servers.EffectServer)
 local EquipmentServer = require(ServerScriptService.Server.Servers.EquipmentServer)
 local InventoryServer = require(ServerScriptService.Server.Servers.InventoryServer)
 local RequirementsServer = require(ServerScriptService.Server.Servers.RequirementsServer)
@@ -47,6 +51,7 @@ local ActionPrompts = require(ReplicatedStorage.Shared.ActionPrompts)
 local ActionTypes = require(ReplicatedStorage.Shared.Types.ActionTypes)
 local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
 local ItemStatsTypes = require(ReplicatedStorage.Shared.Types.ItemStatsTypes)
+local Manifest = require(ReplicatedStorage.Shared.Manifest)
 local OreNodeDefs = require(ReplicatedStorage.Shared.Defs.OreNodeDefs)
 local SkillShared = require(ReplicatedStorage.Shared.SkillShared)
 local WeightedRandom = require(ReplicatedStorage.Shared.WeightedRandom)
@@ -59,13 +64,14 @@ type MiningStats = ItemStatsTypes.MiningStats
 
 local BONUS_DURATION = 45
 local RECHARGE_DURATION = 60
+local BREAKING_DURATION = 0.4
 local PROMPT_DISTANCE = 7
 
 --[=[
-	@type State "Normal" | "Bonus" | "Depleted"
+	@type State "Normal" | "Breaking" | "Bonus" | "Depleted"
 	@within OreNode
 ]=]
-type State = "Normal" | "Bonus" | "Depleted"
+type State = "Normal" | "Breaking" | "Bonus" | "Depleted"
 
 --[=[
 	@interface NodeEntry
@@ -433,6 +439,11 @@ function OreNode:OnHit(player: Player, entry: NodeEntry, stats: MiningStats)
 	local miner = self.ActiveMiners[player]
 	assert(miner ~= nil, "OnHit called for player with no active miner")
 	local def = self.Def
+
+	EffectServer.EffectAll("PlaySound", {
+		Target = entry.Root,
+		Kind = `PickaxeHit{self.Random:NextInteger(1, 4)}`,
+	})
 	local miningLevel = SkillServer.GetSkills(player).Mining.Level
 	local minPower, maxPower = SkillShared.Mining.GetEffectivePower(stats, miningLevel)
 	local rolled = self.Random:NextNumber(minPower, maxPower)
@@ -450,10 +461,50 @@ function OreNode:OnHit(player: Player, entry: NodeEntry, stats: MiningStats)
 		self.BreakProgress += rolled / def.BreakHealth
 		if self.BreakProgress >= 1 then
 			self.BreakProgress = 0
-			self:EnterBonus()
+			self:EnterBreaking()
 		end
 		self.BreakProperty:Set(self.BreakProgress)
 	end
+end
+
+--[=[
+	Transitions to `Breaking` state. Swaps the center visual to its depleted
+	variant and parents the bonus models so they're replicated to clients (and
+	available as targets for client-side effects), but leaves the bonus prompts
+	disabled — `EnterBonus` activates them at the end of the window. Schedules
+	the `Bonus` transition `BREAKING_DURATION` seconds later. The `OnHit`
+	break-meter gate (`self.State == "Normal"`) naturally stops the meter from
+	accumulating during this window; the center prompt and any in-progress miners
+	are untouched and continue to swing.
+	@within OreNode
+]=]
+function OreNode:EnterBreaking()
+	self.State = "Breaking"
+	self.StateProperty:Set(self.State)
+	self:ApplyCenterVisual(true)
+
+	for _, entry in self.BonusEntries do
+		assert(entry.Model ~= nil, "bonus entry missing model")
+		entry.Model.Parent = self.BonusFolder
+	end
+
+	EffectServer.EffectsAll({
+		{ Name = "PlaySound", Args = { Target = self.Instance:GetPivot().Position, Kind = "OreBreak1" } },
+		{
+			Name = "OreNodeBreak",
+			Args = {
+				Model = self.Instance,
+				Duration = BREAKING_DURATION,
+				Manifest = Manifest.Make(self.BonusFolder),
+			},
+		},
+	})
+
+	self:CancelStateThread()
+	self.StateThread = task.delay(BREAKING_DURATION, function()
+		self.StateThread = nil
+		self:EnterBonus()
+	end)
 end
 
 --[=[
@@ -484,20 +535,18 @@ function OreNode:ApplyCenterVisual(wantDepleted: boolean)
 end
 
 --[=[
-	Transitions to `Bonus` state. The shared break meter is reset, the center
-	visual swaps to the depleted model, and bonus entries are surfaced. Per spec,
-	this does NOT interrupt players currently mining the center node.
+	Transitions to `Bonus` state. The shared break meter property is republished
+	and the bonus entries' prompts go live. The bonus models and the depleted
+	center visual were swapped in earlier during `EnterBreaking`. Per spec, this
+	does NOT interrupt players currently mining the center node.
 	@within OreNode
 ]=]
 function OreNode:EnterBonus()
 	self.State = "Bonus"
 	self.StateProperty:Set(self.State)
 	self.BreakProperty:Set(self.BreakProgress)
-	self:ApplyCenterVisual(true)
 	for _, entry in self.BonusEntries do
 		entry.PlayerProgress = {}
-		assert(entry.Model ~= nil, "bonus entry missing model")
-		entry.Model.Parent = self.Instance
 		ActionPrompts.SetServerEnabled(entry.Prompt, true)
 	end
 	self:CancelStateThread()

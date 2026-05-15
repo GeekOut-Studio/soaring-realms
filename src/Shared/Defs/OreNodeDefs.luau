@@ -84,7 +84,7 @@ local Defs = {
 			Requirements.SkillLevel("Mining", 1),
 		},
 		ProgressHealth = 5,
-		BreakHealth = 25,
+		BreakHealth = 1,
 		ExperiencePerProgress = 10,
 		Drops = {
 			{ Kind = "OreCopper", Weight = 3 },

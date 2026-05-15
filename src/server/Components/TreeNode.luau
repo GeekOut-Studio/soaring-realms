@@ -472,13 +472,9 @@ function TreeNode:EnterFalling()
 	self.State = "Falling"
 	self.StateProperty:Set(self.State)
 
-	EffectServer.EffectAll("PlaySound", {
-		Target = self.Stump,
-		Kind = "TreeFall1",
-	})
-	EffectServer.EffectAll("TreeNodeFall", {
-		Model = self.Instance,
-		Duration = FALLING_DURATION,
+	EffectServer.EffectsAll({
+		{ Name = "PlaySound", Args = { Target = self.Stump, Kind = "TreeFall1" } },
+		{ Name = "TreeNodeFall", Args = { Model = self.Instance, Duration = FALLING_DURATION } },
 	})
 
 	self:CancelStateThread()

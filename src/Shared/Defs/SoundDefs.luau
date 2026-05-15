@@ -6,6 +6,11 @@ local Defs = {
 	AxeHit1 = "rbxassetid://87699752991998",
 	AxeHit2 = "rbxassetid://70450729382844",
 	AxeHit3 = "rbxassetid://109455908786365",
+	OreBreak1 = "rbxassetid://74542421768481",
+	PickaxeHit1 = "rbxassetid://84606356648769",
+	PickaxeHit2 = "rbxassetid://86353294574002",
+	PickaxeHit3 = "rbxassetid://93990502023598",
+	PickaxeHit4 = "rbxassetid://86565841939766",
 	TreeFall1 = "rbxassetid://122034472338332",
 }
 

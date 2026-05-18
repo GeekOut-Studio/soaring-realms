@@ -32,6 +32,7 @@ local Workspace = game:GetService("Workspace")
 
 local InventoryServer = require(ServerScriptService.Server.Servers.InventoryServer)
 local LootTypes = require(ReplicatedStorage.Shared.Types.LootTypes)
+local Parts = require(ReplicatedStorage.Shared.Parts)
 
 type PlayerLoot = LootTypes.PlayerLoot
 type PlayerLootMap = { [Player]: PlayerLoot }
@@ -99,13 +100,9 @@ end
 function LootServer.SpawnBag(cframe: CFrame, playerLoot: PlayerLootMap)
 	local part = Instance.new("Part")
 	part.Name = "LootBag"
-	part.Anchored = true
-	part.CanCollide = false
-	part.CanQuery = false
-	part.CanTouch = false
-	part.Transparency = 1
 	part.Size = Vector3.new(1, 1, 1)
 	part.CFrame = cframe
+	Parts.MakeIntangible(part)
 	part.Parent = bagsFolder
 
 	lootByInstance[part] = playerLoot

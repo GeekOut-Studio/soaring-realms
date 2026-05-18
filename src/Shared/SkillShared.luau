@@ -18,6 +18,7 @@ local ItemStatsTypes = require(ReplicatedStorage.Shared.Types.ItemStatsTypes)
 
 type MiningStats = ItemStatsTypes.MiningStats
 type WoodcuttingStats = ItemStatsTypes.WoodcuttingStats
+type FishingStats = ItemStatsTypes.FishingStats
 
 local SkillShared = {}
 
@@ -60,6 +61,26 @@ local WOODCUTTING_POWER_PER_LEVEL = 0.02
 function SkillShared.Woodcutting.GetEffectivePower(stats: WoodcuttingStats, level: number): (number, number)
 	local mult = 1 + level * WOODCUTTING_POWER_PER_LEVEL
 	return stats.Power.Min * mult, stats.Power.Max * mult
+end
+
+SkillShared.Fishing = {}
+
+local FISHING_CATCH_PER_LEVEL = 0.02
+
+--[=[
+	Returns the effective per-tick catch chance, given the rod's base
+	`FishingStats` and the player's current Fishing level. Each level adds
+	`FISHING_CATCH_PER_LEVEL` (currently 2%) on top of the rod's base chance,
+	clamped to 1.
+	@function Fishing.GetEffectiveCatchChance
+	@within SkillShared
+	@param stats FishingStats
+	@param level number
+	@return number -- Effective catch chance, 0..1.
+]=]
+function SkillShared.Fishing.GetEffectiveCatchChance(stats: FishingStats, level: number): number
+	local mult = 1 + level * FISHING_CATCH_PER_LEVEL
+	return math.min(stats.CatchChance * mult, 1)
 end
 
 return SkillShared

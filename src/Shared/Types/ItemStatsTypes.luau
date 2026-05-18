@@ -47,6 +47,17 @@ export type WoodcuttingStats = {
 }
 
 --[=[
+	@interface FishingStats
+	@within ItemStatsTypes
+	@field Interval number -- Seconds between successive catch rolls. Each fishing spot tick is one roll; during a spot's `Frenzy` state the effective interval is scaled by the spot's frenzy interval multiplier.
+	@field CatchChance number -- Base probability (0..1) of a successful catch on each tick. Scaled by the player's Fishing level via `SkillShared.Fishing.GetEffectiveCatchChance` and by the spot's frenzy catch multiplier when frenzied.
+]=]
+export type FishingStats = {
+	Interval: number,
+	CatchChance: number,
+}
+
+--[=[
 	@interface CombatStats
 	@within ItemStatsTypes
 	@field Interval number -- Seconds between successive attacks.
@@ -68,11 +79,13 @@ export type CombatStats = {
 	@within ItemStatsTypes
 	@field Mining MiningStats? -- Present on mining tools (pickaxes).
 	@field Woodcutting WoodcuttingStats? -- Present on woodcutting tools (axes).
+	@field Fishing FishingStats? -- Present on fishing tools (rods).
 	@field Combat CombatStats? -- Present on weapons.
 ]=]
 export type Stats = {
 	Mining: MiningStats?,
 	Woodcutting: WoodcuttingStats?,
+	Fishing: FishingStats?,
 	Combat: CombatStats?,
 }
 

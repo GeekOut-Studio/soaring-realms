@@ -45,6 +45,7 @@ InventoryTypes.DefaultInventory = table.freeze({
 	["1"] = table.freeze({ Kind = "SwordCopper" }),
 	["2"] = table.freeze({ Kind = "PickaxeCopper" }),
 	["3"] = table.freeze({ Kind = "AxeCopper" }),
+	["4"] = table.freeze({ Kind = "FishingRodCopper" }),
 } :: Inventory)
 
 return InventoryTypes

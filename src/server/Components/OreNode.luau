@@ -53,6 +53,7 @@ local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
 local ItemStatsTypes = require(ReplicatedStorage.Shared.Types.ItemStatsTypes)
 local Manifest = require(ReplicatedStorage.Shared.Manifest)
 local OreNodeDefs = require(ReplicatedStorage.Shared.Defs.OreNodeDefs)
+local Parts = require(ReplicatedStorage.Shared.Parts)
 local SkillShared = require(ReplicatedStorage.Shared.SkillShared)
 local WeightedRandom = require(ReplicatedStorage.Shared.WeightedRandom)
 
@@ -124,13 +125,9 @@ local OreNode = Component.new({
 local function makeRootPart(name: string, cframe: CFrame, parent: Instance): BasePart
 	local part = Instance.new("Part")
 	part.Name = name
-	part.Anchored = true
-	part.CanCollide = false
-	part.CanQuery = false
-	part.CanTouch = false
-	part.Transparency = 1
 	part.Size = Vector3.new(1, 1, 1)
 	part.CFrame = cframe
+	Parts.MakeIntangible(part)
 	part.Parent = parent
 	return part
 end

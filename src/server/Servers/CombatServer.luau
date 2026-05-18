@@ -40,7 +40,7 @@ local sessions: { [CombatSession]: true } = {}
 -- Used by `FindForwardHostile` and other "scan the world for combat-eligible
 -- targets" queries that need to consider participants outside any session.
 local combatants: { [Combatant]: true } = {}
-local accumulator = 0
+local elapsed = 0
 local started = false
 
 local CombatServer = {}
@@ -299,11 +299,11 @@ function CombatServer.Init()
 	end
 	started = true
 	RunService.Heartbeat:Connect(function(dt)
-		accumulator += dt
-		if accumulator < TICK_INTERVAL then
+		elapsed += dt
+		if elapsed < TICK_INTERVAL then
 			return
 		end
-		accumulator = 0
+		elapsed = 0
 		step()
 	end)
 end

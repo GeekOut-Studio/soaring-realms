@@ -37,6 +37,12 @@ local Defs = {
 	LogPoplar = {
 		Name = "Poplar Log",
 	},
+	FishCommon = {
+		Name = "Common Fish",
+	},
+	Junk = {
+		Name = "Junk",
+	},
 	SwordCopper = {
 		Name = "Copper Sword",
 		EquipSlots = { "MainHandMelee" },
@@ -74,6 +80,18 @@ local Defs = {
 			Woodcutting = {
 				Interval = 1.75,
 				Power = { Min = 0.9, Max = 1.1 },
+			},
+		},
+	},
+	FishingRodCopper = {
+		Name = "Copper Fishing Rod",
+		EquipSlots = { "MainHandMelee" },
+		AssetPath = "Base/Tools/FishingRodCopper",
+		IdleAnimation = "ToolShoulderedIdle",
+		Stats = {
+			Fishing = {
+				Interval = 4,
+				CatchChance = 0.25,
 			},
 		},
 	},

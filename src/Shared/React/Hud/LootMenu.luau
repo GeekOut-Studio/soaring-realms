@@ -17,7 +17,7 @@ local LootTypes = require(ReplicatedStorage.Shared.Types.LootTypes)
 local MenusContext = require(ReplicatedStorage.Shared.React.MenusContext)
 local Observing = require(ReplicatedStorage.Shared.Observing)
 local Range = require(ReplicatedStorage.Shared.Range)
-local Aspect = require(ReplicatedStorage.Shared.React.Common.Aspect)
+local CloseButton = require(ReplicatedStorage.Shared.React.Common.CloseButton)
 local FlexFill = require(ReplicatedStorage.Shared.React.Common.FlexFill)
 local PaddingAll = require(ReplicatedStorage.Shared.React.Common.PaddingAll)
 local Panel = require(ReplicatedStorage.Shared.React.Common.Panel)
@@ -134,25 +134,11 @@ local function LootMenu()
 			}, {
 				Flex = e(FlexFill),
 			}),
-			Close = e(TextButton, {
-				Native = {
-					LayoutOrder = 2,
-					Size = UDim2.fromScale(0, 0),
-					Text = "X",
-					TextSize = 20,
-					FontFace = FontDefs.Bold,
-					[React.Event.Activated] = function()
-						LootClient.CloseBag()
-					end,
-				},
-			}, {
-				Stroke = e("UIStroke", {
-					Color = ColorDefs.PanelBorder,
-					Thickness = 1,
-				}),
-				Aspect = e(Aspect, {
-					Ratio = 1,
-				}),
+			Close = e(CloseButton, {
+				LayoutOrder = 2,
+				OnActivated = function()
+					LootClient.CloseBag()
+				end,
 			}),
 		}),
 		Slots = e(Container, {

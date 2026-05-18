@@ -70,7 +70,7 @@ local Defs = {
 		Name = "Fishing Spot",
 		Requirements = {},
 		ExperiencePerCatch = 15,
-		FrenzyHealth = 1,
+		FrenzyHealth = 5,
 		Drops = {
 			{ Kind = "FishCommon", Weight = 4 },
 			{ Kind = "Junk", Weight = 1 },

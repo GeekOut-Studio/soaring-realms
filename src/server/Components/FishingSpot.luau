@@ -44,6 +44,7 @@ local Component = require(ReplicatedStorage.Packages.Component)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local t = require(ReplicatedStorage.Packages.t)
 
+local EffectServer = require(ServerScriptService.Server.Servers.EffectServer)
 local EquipmentServer = require(ServerScriptService.Server.Servers.EquipmentServer)
 local InventoryServer = require(ServerScriptService.Server.Servers.InventoryServer)
 local RequirementsServer = require(ServerScriptService.Server.Servers.RequirementsServer)
@@ -54,6 +55,7 @@ local ActionTypes = require(ReplicatedStorage.Shared.Types.ActionTypes)
 local FishingShared = require(ReplicatedStorage.Shared.FishingShared)
 local FishingSpotDefs = require(ReplicatedStorage.Shared.Defs.FishingSpotDefs)
 local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
+local SoundDefs = require(ReplicatedStorage.Shared.Defs.SoundDefs)
 local ItemStatsTypes = require(ReplicatedStorage.Shared.Types.ItemStatsTypes)
 local Parts = require(ReplicatedStorage.Shared.Parts)
 local SkillShared = require(ReplicatedStorage.Shared.SkillShared)
@@ -485,6 +487,10 @@ function FishingSpot:OnTick(player: Player, stats: FishingStats)
 		SkillServer.AddExperience(player, "Fishing", def.ExperiencePerCatch)
 		local outworlder = self.ActiveFishers[player].Outworlder
 		outworlder:AnimationPlay("FishingCatch")
+		EffectServer.EffectAll("PlaySound", {
+			Target = self.Root,
+			Kind = `FishingCatch{self.Random:NextInteger(1, 4)}`,
+		})
 	end
 
 	if self.State == "Normal" then
@@ -547,6 +553,15 @@ function FishingSpot:EnterFrenzy()
 	if self.SplashesEmitter ~= nil then
 		self.SplashesEmitter.Enabled = true
 	end
+	EffectServer.EffectAll("PlaySound", {
+		Target = self.Root,
+		Kind = `FishingSpotFrenzy{self.Random:NextInteger(1, 4)}`,
+	})
+
+	local loopSound = SoundDefs.FishingSpotFrenzyLoop1:Clone()
+	loopSound.Parent = self.Root
+	loopSound:Play()
+	self.FrenzyLoopSound = loopSound
 	if self.FrenzyThread ~= nil then
 		task.cancel(self.FrenzyThread)
 	end
@@ -590,6 +605,19 @@ function FishingSpot:ExitFrenzy()
 	end
 	if self.SplashesEmitter ~= nil then
 		self.SplashesEmitter.Enabled = false
+	end
+	if self.FrenzyLoopSound ~= nil then
+		local fadeTime = 1
+		local sound = self.FrenzyLoopSound
+		self.FrenzyLoopSound = nil
+		EffectServer.EffectAll("Tween", {
+			Instance = sound,
+			Properties = { Volume = 0 },
+			Duration = fadeTime,
+		})
+		task.delay(fadeTime, function()
+			sound:Destroy()
+		end)
 	end
 end
 

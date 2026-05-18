@@ -36,6 +36,7 @@ local React = require(ReplicatedStorage.Packages.React)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local Billboards = require(ReplicatedStorage.Shared.React.Billboards.Billboards)
+local EffectClient = require(ReplicatedStorage.Shared.Clients.EffectClient)
 local FishingSpotBillboard = require(ReplicatedStorage.Shared.React.Billboards.FishingSpotBillboard)
 local GetEffectsFolder = require(ReplicatedStorage.Shared.GetEffectsFolder)
 local OutworlderClient = require(ReplicatedStorage.Shared.Components.OutworlderClient)
@@ -43,6 +44,8 @@ local AnimationDefs = require(ReplicatedStorage.Shared.Defs.AnimationDefs)
 local Timeline = require(ReplicatedStorage.Shared.Timeline)
 
 local e = React.createElement
+
+local rng = Random.new()
 
 local BAR_VISIBILITY_SECONDS = 5
 local WAIT_FOR_CHILD_TIMEOUT = 10
@@ -300,11 +303,21 @@ function FishingSpotClient:AttachLineForCharacter(
 	end
 	setLineLength(0)
 
-	sessionTrove:AddPromise(Promise.delay(0.6):andThen(function()
-		return Timeline(0.25, function(alpha)
-			setLineLength(alpha)
+	local function playLandSound()
+		EffectClient.Effect("PlaySound", {
+			Target = waterAttachment,
+			Kind = `FishingRodLand{rng:NextInteger(1, 4)}`,
+		})
+	end
+
+	sessionTrove:AddPromise(Promise.delay(0.6)
+		:andThen(function()
+			EffectClient.Effect("PlaySound", { Target = origAttachment1, Kind = "FishingRodCast1" })
+			return Timeline(0.25, function(alpha)
+				setLineLength(alpha)
+			end)
 		end)
-	end))
+		:andThen(playLandSound))
 
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if humanoid ~= nil then
@@ -333,6 +346,7 @@ function FishingSpotClient:AttachLineForCharacter(
 							setLineLength(alpha)
 						end)
 					end)
+					:andThen(playLandSound)
 					:finally(function()
 						setLineLength(1)
 						-- Only clear the slot if a later catch hasn't claimed it.

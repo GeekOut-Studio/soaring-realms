@@ -90,7 +90,7 @@ local Defs = {
 		IdleAnimation = "ToolShoulderedIdle",
 		Stats = {
 			Fishing = {
-				Interval = 4,
+				Interval = 6,
 				CatchChance = 0.25,
 			},
 		},

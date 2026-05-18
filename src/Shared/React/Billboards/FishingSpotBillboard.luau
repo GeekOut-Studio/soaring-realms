@@ -6,13 +6,15 @@
 	`FishingSpotClient` and subscribes to its `State`, `Frenzy`, and
 	`FrenzyExpiresAt` properties.
 
-	Two display modes share the same bar:
+	Three display modes:
 	- `"Normal"` — the bar shows the build-up meter (server-replicated `Frenzy`
 	  property, 0..1).
-	- `"Frenzy"` — the bar starts at full and drains over `FRENZY_DURATION`
+	- `"Frenzy"` — the bar starts at full and drains over `FrenzyDuration`
 	  seconds. The countdown is driven locally from `FrenzyExpiresAt` (a
 	  server-time stamp pushed once on entry) plus the shared
-	  `FRENZY_DURATION` constant — no per-Heartbeat replication.
+	  `FrenzyDuration` constant — no per-Heartbeat replication.
+	- `"Suppressed"` — a sibling spot in the group is currently frenzied, so
+	  this spot's bar is hidden entirely.
 ]=]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -45,6 +47,9 @@ local function FishingSpotBillboard(props: {
 	end, { props.Node })
 
 	React.useEffect(function()
+		if state == "Suppressed" then
+			return
+		end
 		if state == "Frenzy" then
 			-- Countdown is driven locally from the one-shot `FrenzyExpiresAt`
 			-- timestamp; no need to subscribe to per-tick `Frenzy` updates.
@@ -54,7 +59,7 @@ local function FishingSpotBillboard(props: {
 			end)
 			local heartbeat = RunService.Heartbeat:Connect(function()
 				local remaining = expiresAt - Workspace:GetServerTimeNow()
-				setFill(math.clamp(remaining / FishingShared.FRENZY_DURATION, 0, 1))
+				setFill(math.clamp(remaining / FishingShared.FrenzyDuration, 0, 1))
 			end)
 			return function()
 				heartbeat:Disconnect()
@@ -70,6 +75,10 @@ local function FishingSpotBillboard(props: {
 			connection:Disconnect()
 		end
 	end, { props.Node, state })
+
+	if state == "Suppressed" then
+		return nil
+	end
 
 	local isFrenzy = state == "Frenzy"
 	local label = if isFrenzy then "FRENZY!" else "Frenzy"

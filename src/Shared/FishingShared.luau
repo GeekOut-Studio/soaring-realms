@@ -12,27 +12,27 @@
 local FishingShared = {}
 
 --[=[
-	@prop FRENZY_DURATION number
+	@prop FrenzyDuration number
 	@within FishingShared
 	Wall-clock seconds a fishing spot stays in `Frenzy` state before it
 	auto-returns to `Normal`.
 ]=]
-FishingShared.FRENZY_DURATION = 30
+FishingShared.FrenzyDuration = 30
 
 --[=[
-	@prop FRENZY_INTERVAL_MULTIPLIER number
+	@prop FrenzyIntervalMultiplier number
 	@within FishingShared
 	Multiplier applied to the rod's `Interval` while the fishing spot is in
-	`Frenzy` (0.25 → 4× faster ticks).
+	`Frenzy` (0.5 → 2× faster ticks).
 ]=]
-FishingShared.FRENZY_INTERVAL_MULTIPLIER = 0.25
+FishingShared.FrenzyIntervalMultiplier = 0.5
 
 --[=[
-	@prop FRENZY_CATCH_MULTIPLIER number
+	@prop FrenzyCatchMultiplier number
 	@within FishingShared
 	Multiplier applied to the player's effective catch chance while the fishing
 	spot is in `Frenzy` (2× — capped at 1 by the consumer).
 ]=]
-FishingShared.FRENZY_CATCH_MULTIPLIER = 2
+FishingShared.FrenzyCatchMultiplier = 2
 
 return FishingShared

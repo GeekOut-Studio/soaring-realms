@@ -111,6 +111,15 @@ local OutworlderClient = Component.new({
 ]=]
 
 --[=[
+	@prop RenderedEquipmentChanged Signal<EquipmentSlot, Model?>
+	@within OutworlderClient
+	Fires when a slot's rendered Model attaches (with the Model) or detaches
+	(with `nil`). Pair with `GetRenderedModel` for the current value. Public:
+	external systems (e.g. `FishingSpotClient` for the fishing-line rope clones)
+	subscribe to react to remote players' equipment changes.
+]=]
+
+--[=[
 	@prop InActionProperty any
 	@within OutworlderClient
 	Comm property mirroring whether the outworlder is currently executing an
@@ -122,6 +131,7 @@ local OutworlderClient = Component.new({
 type SlotState = {
 	Trove: any,
 	ItemKind: string,
+	Model: Model?, -- The currently rendered, character-parented model. Populated after the asset download resolves; `nil` before then.
 }
 
 function OutworlderClient:Construct()
@@ -137,6 +147,7 @@ function OutworlderClient:Construct()
 	self.StaminaChanged = self.Trove:Construct(Signal) :: Signal.Signal<number>
 	self.ActionProgress = nil :: ActionProgress?
 	self.ActionProgressChanged = self.Trove:Construct(Signal) :: Signal.Signal<ActionProgress?>
+	self.RenderedEquipmentChanged = self.Trove:Construct(Signal) :: Signal.Signal<EquipmentSlot, Model?>
 	self.WasMoving = false
 	self.FaceTowardsLoopTrove = nil :: any
 
@@ -601,6 +612,9 @@ function OutworlderClient:ReconcileEquipment(equipment: Equipment)
 		if state ~= nil then
 			self.Trove:Remove(state.Trove)
 			self.SlotStates[slotKey] = nil
+			if state.Model ~= nil then
+				self.RenderedEquipmentChanged:Fire(slotKey, nil)
+			end
 		end
 
 		if newItem ~= nil then
@@ -629,16 +643,40 @@ function OutworlderClient:RenderSlot(slotKey: EquipmentSlot, item: Item)
 	end
 
 	local slotTrove = self.Trove:Extend()
-	self.SlotStates[slotKey] = { Trove = slotTrove, ItemKind = item.Kind }
+	local state: SlotState = { Trove = slotTrove, ItemKind = item.Kind, Model = nil }
+	self.SlotStates[slotKey] = state
 
 	slotTrove:AddPromise(DownloadClient.Download(def.AssetPath)
 		:andThen(function(asset: Instance)
 			slotTrove:Add(asset)
 			renderer(asset, self.Instance, slotTrove)
+			-- The renderer's contract is to parent `asset` under the character.
+			-- Capture and announce only if the slot state we set above is still
+			-- the live one (an in-flight equipment swap could have replaced it).
+			if self.SlotStates[slotKey] == state and asset:IsA("Model") then
+				state.Model = asset
+				self.RenderedEquipmentChanged:Fire(slotKey, asset)
+			end
 		end)
 		:catch(function(err)
 			warn(`OutworlderClient: failed to render {slotKey} ({item.Kind}): {err}`)
 		end))
+end
+
+--[=[
+	Returns the currently rendered Model for `slot`, or `nil` if the slot is
+	empty or the asset hasn't finished downloading yet. Subscribe to
+	`RenderedEquipmentChanged` for change notifications.
+	@within OutworlderClient
+	@param slot EquipmentSlot
+	@return Model?
+]=]
+function OutworlderClient:GetRenderedModel(slot: EquipmentSlot): Model?
+	local state = self.SlotStates[slot]
+	if state == nil then
+		return nil
+	end
+	return state.Model
 end
 
 return OutworlderClient

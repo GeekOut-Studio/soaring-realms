@@ -17,7 +17,7 @@
 	  a spot also adds one unit to that spot's frenzy bar (regardless of catch
 	  outcome). On fill, a different random sibling is selected to enter
 	  `Frenzy`; every sibling's bar is reset to 0.
-	- The frenzied spot scales its tick interval (4× faster) and its catch
+	- The frenzied spot scales its tick interval (2× faster) and its catch
 	  chance (2×) using multipliers from `FishingShared`. After the shared
 	  frenzy duration the spot returns to `Normal`.
 
@@ -27,7 +27,8 @@
 	  `RopeConstraint` running between `InteractionPoint.InteractionStart` and
 	  `Root.InteractionEnd`) so designers can lay out spots intuitively; this
 	  component hides the part and removes the line at startup.
-	- `Root` (BasePart) — facing target and billboard anchor.
+	- `Root` (BasePart) — facing target and billboard anchor. Optionally hosts
+	  a `Splashes` `ParticleEmitter` toggled on while the spot is `Frenzy`.
 
 	Reads one attribute:
 	- `FishingSpotKind` (`FishingSpotKind`) — selects the def.
@@ -68,14 +69,27 @@ local PROMPT_DISTANCE = 7
 local ACTIVE_PULSE_INTERVAL = 1
 
 --[=[
-	@type State "Normal" | "Frenzy"
+	@type State "Normal" | "Frenzy" | "Suppressed"
 	@within FishingSpot
+	`Suppressed` means a *different* spot in the group is currently in `Frenzy`,
+	so this spot's frenzy bar is locked at 0 and the build-up UI is hidden.
 ]=]
-export type State = "Normal" | "Frenzy"
+export type State = "Normal" | "Frenzy" | "Suppressed"
 
 type ActiveFisher = {
 	Outworlder: any,
 	Action: Action,
+}
+
+--[=[
+	@interface ActiveFisherEntry
+	@within FishingSpot
+	@field Player Player
+	@field LocalAnchor Vector3 -- Offset from `Root.CFrame` for this player's water-side rope endpoint. Rolled server-side so every client renders the same point.
+]=]
+export type ActiveFisherEntry = {
+	Player: Player,
+	LocalAnchor: Vector3,
 }
 
 local FishingSpot = Component.new({
@@ -144,6 +158,12 @@ function FishingSpot:Construct()
 
 	Parts.MakeIntangible(self.InteractionPoint)
 
+	local splashes = self.Root:FindFirstChild("Splashes")
+	if splashes ~= nil and splashes:IsA("ParticleEmitter") then
+		self.SplashesEmitter = splashes :: ParticleEmitter
+		self.SplashesEmitter.Enabled = false
+	end
+
 	local line = self.InteractionPoint:FindFirstChild("Line")
 	if line ~= nil then
 		line.Attachment0:Destroy()
@@ -157,6 +177,12 @@ function FishingSpot:Construct()
 	self.FrenzyProperty = self.Comm:CreateProperty("Frenzy", self.FrenzyProgress)
 	self.FrenzyExpiresAtProperty = self.Comm:CreateProperty("FrenzyExpiresAt", 0)
 	self.ActiveSignal = self.Comm:CreateSignal("Active")
+	-- Replicated list of currently fishing players, each paired with their
+	-- per-session anchor offset (local to `Root`) for the water-side rope
+	-- endpoint. The anchor is server-rolled so every client renders the same
+	-- point on the water for a given player's session.
+	self.ActiveFishersList = {} :: { ActiveFisherEntry }
+	self.ActiveFishersProperty = self.Comm:CreateProperty("ActiveFishers", self.ActiveFishersList)
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.ActionText = "Fish"
@@ -254,24 +280,6 @@ function FishingSpot:GetSiblingSpots(): { any }
 end
 
 --[=[
-	Whether any spot in this spot's group (self or sibling) is currently in
-	`Frenzy`. While true, no spot's frenzy bar accumulates.
-	@within FishingSpot
-	@return boolean
-]=]
-function FishingSpot:IsAnySpotFrenzied(): boolean
-	if self.State == "Frenzy" then
-		return true
-	end
-	for _, sibling in self:GetSiblingSpots() do
-		if sibling.State == "Frenzy" then
-			return true
-		end
-	end
-	return false
-end
-
---[=[
 	Routes a proximity-prompt activation into a new fishing action on the
 	player's `Outworlder`. Requirements gating happens in `BeginFishing`.
 	@within FishingSpot
@@ -321,8 +329,8 @@ function FishingSpot:BeginFishing(player: Player, outworlder: any)
 
 	local initialInterval = spot:GetEffectiveInterval(stats)
 	local elapsed = 0
-	-- Seed so the first Heartbeat fires an Active pulse immediately, letting
-	-- the player's billboard appear without the ~1s warm-up otherwise needed.
+	local lastInterval = initialInterval
+	-- Seed for immediate first Active pulse.
 	local activePulseElapsed = ACTIVE_PULSE_INTERVAL
 
 	outworlder:StartAction({
@@ -335,6 +343,7 @@ function FishingSpot:BeginFishing(player: Player, outworlder: any)
 				Outworlder = outworlder,
 				Action = actionSelf,
 			}
+			spot:AddActiveFisher(player)
 			outworlder:FaceTowards(spot.Root.Position)
 			outworlder:AnimationPlay("FishingIdle")
 			outworlder:AnimationPlay("FishingCast")
@@ -352,6 +361,10 @@ function FishingSpot:BeginFishing(player: Player, outworlder: any)
 				return ActionTypes.Result.Fail
 			end
 			local interval = spot:GetEffectiveInterval(currentStats)
+			if interval ~= lastInterval then
+				actionSelf.CompletionTimestamp = Workspace:GetServerTimeNow() + math.max(0, interval - elapsed)
+				lastInterval = interval
+			end
 			while elapsed >= interval do
 				elapsed -= interval
 				local stillOk, stillMessage = RequirementsServer.CheckForPlayer(player, def.Requirements)
@@ -367,15 +380,62 @@ function FishingSpot:BeginFishing(player: Player, outworlder: any)
 				-- Re-read interval after the tick — the tick itself may have
 				-- migrated frenzy and changed our effective cadence.
 				interval = spot:GetEffectiveInterval(currentStats)
+				lastInterval = interval
 				actionSelf.CompletionTimestamp = Workspace:GetServerTimeNow() + interval
 			end
 			return ActionTypes.Result.Continue
 		end,
 		Stop = function(_self, _reason: StopReason)
 			outworlder:AnimationStop("FishingIdle")
+			outworlder:AnimationStop("FishingCast")
+			outworlder:AnimationStop("FishingCatch")
 			spot.ActiveFishers[player] = nil
+			spot:RemoveActiveFisher(player)
 		end,
 	})
+end
+
+--[=[
+	Adds `player` to the replicated `ActiveFishers` list with a freshly rolled
+	water-anchor offset (local to `Root`). The y component is the part's top
+	surface; x/z are uniformly random within the part's extents.
+	@within FishingSpot
+	@param player Player
+]=]
+function FishingSpot:AddActiveFisher(player: Player)
+	local size = self.Root.Size
+	local anchor = Vector3.new(
+		self.Random:NextNumber(-size.X / 2, size.X / 2),
+		size.Y / 2,
+		self.Random:NextNumber(-size.Z / 2, size.Z / 2)
+	)
+	local newList = table.clone(self.ActiveFishersList)
+	table.insert(newList, { Player = player, LocalAnchor = anchor })
+	self.ActiveFishersList = newList
+	self.ActiveFishersProperty:Set(newList)
+end
+
+--[=[
+	Removes `player` from the replicated `ActiveFishers` list. No-op if the
+	player isn't currently listed.
+	@within FishingSpot
+	@param player Player
+]=]
+function FishingSpot:RemoveActiveFisher(player: Player)
+	local index: number? = nil
+	for i, entry in self.ActiveFishersList do
+		if entry.Player == player then
+			index = i
+			break
+		end
+	end
+	if index == nil then
+		return
+	end
+	local newList = table.clone(self.ActiveFishersList)
+	table.remove(newList, index)
+	self.ActiveFishersList = newList
+	self.ActiveFishersProperty:Set(newList)
 end
 
 --[=[
@@ -399,7 +459,7 @@ end
 ]=]
 function FishingSpot:GetEffectiveInterval(stats: FishingStats): number
 	if self.State == "Frenzy" then
-		return stats.Interval * FishingShared.FRENZY_INTERVAL_MULTIPLIER
+		return stats.Interval * FishingShared.FrenzyIntervalMultiplier
 	end
 	return stats.Interval
 end
@@ -416,7 +476,7 @@ function FishingSpot:OnTick(player: Player, stats: FishingStats)
 	local fishingLevel = SkillServer.GetSkills(player).Fishing.Level
 	local catchChance = SkillShared.Fishing.GetEffectiveCatchChance(stats, fishingLevel)
 	if self.State == "Frenzy" then
-		catchChance = math.min(catchChance * FishingShared.FRENZY_CATCH_MULTIPLIER, 1)
+		catchChance = math.min(catchChance * FishingShared.FrenzyCatchMultiplier, 1)
 	end
 
 	if self.Random:NextNumber() < catchChance then
@@ -427,7 +487,7 @@ function FishingSpot:OnTick(player: Player, stats: FishingStats)
 		outworlder:AnimationPlay("FishingCatch")
 	end
 
-	if not self:IsAnySpotFrenzied() then
+	if self.State == "Normal" then
 		self.FrenzyProgress += 1 / def.FrenzyHealth
 		if self.FrenzyProgress >= 1 then
 			self:TriggerFrenzyMigration()
@@ -476,15 +536,44 @@ end
 ]=]
 function FishingSpot:EnterFrenzy()
 	self.State = "Frenzy"
-	self.FrenzyExpiresAtProperty:Set(Workspace:GetServerTimeNow() + FishingShared.FRENZY_DURATION)
+	-- Set the expiry timestamp before the state flips so clients can't briefly
+	-- observe state="Frenzy" with a stale `FrenzyExpiresAt` if the two
+	-- properties happen to replicate on separate Heartbeat batches.
+	self.FrenzyExpiresAtProperty:Set(Workspace:GetServerTimeNow() + FishingShared.FrenzyDuration)
 	self.StateProperty:Set(self.State)
+	for _, sibling in self:GetSiblingSpots() do
+		sibling:EnterSuppressed()
+	end
+	if self.SplashesEmitter ~= nil then
+		self.SplashesEmitter.Enabled = true
+	end
 	if self.FrenzyThread ~= nil then
 		task.cancel(self.FrenzyThread)
 	end
-	self.FrenzyThread = task.delay(FishingShared.FRENZY_DURATION, function()
+	self.FrenzyThread = task.delay(FishingShared.FrenzyDuration, function()
 		self.FrenzyThread = nil
 		self:ExitFrenzy()
 	end)
+end
+
+--[=[
+	Pushes this spot into `Suppressed` so its build-up bar is hidden client-side
+	for the duration of a sibling's `Frenzy`. Called by the frenzying sibling.
+	@within FishingSpot
+]=]
+function FishingSpot:EnterSuppressed()
+	self.State = "Suppressed"
+	self.StateProperty:Set(self.State)
+end
+
+--[=[
+	Pulls this spot out of `Suppressed`, back to `Normal`. Called by the
+	previously-frenzied sibling at the end of its frenzy window.
+	@within FishingSpot
+]=]
+function FishingSpot:ExitSuppressed()
+	self.State = "Normal"
+	self.StateProperty:Set(self.State)
 end
 
 --[=[
@@ -496,6 +585,12 @@ function FishingSpot:ExitFrenzy()
 	self.State = "Normal"
 	self.StateProperty:Set(self.State)
 	self.FrenzyExpiresAtProperty:Set(0)
+	for _, sibling in self:GetSiblingSpots() do
+		sibling:ExitSuppressed()
+	end
+	if self.SplashesEmitter ~= nil then
+		self.SplashesEmitter.Enabled = false
+	end
 end
 
 return FishingSpot

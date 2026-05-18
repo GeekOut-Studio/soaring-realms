@@ -11,11 +11,14 @@
 	  fishing action on the activating player's `Outworlder`. The action plays
 	  `FishingCast` once on start and loops `FishingIdle` for the duration. The
 	  player faces toward the model's `Root` part (not `InteractionPoint`).
-	- Each action tick is one catch roll. On success: grant XP + a drop and play
-	  `FishingCatch` as an overlay. On failure: keep idling.
-	- While no spot in the parent group is in `Frenzy` state, each action tick on
-	  a spot also adds one unit to that spot's frenzy bar (regardless of catch
-	  outcome). On fill, a different random sibling is selected to enter
+	- Each tick rolls the rod's `CatchPower` (scaled by Fishing level) and uses it
+	  for two purposes: opposed against the spot's `CatchDifficulty` to derive
+	  catch chance via `power / (power + difficulty)`, and (in `Normal` state) as
+	  damage to the spot's frenzy bar. On a successful catch: grant XP + a drop
+	  and play `FishingCatch` as an overlay. On failure: keep idling.
+	- While no spot in the parent group is in `Frenzy` state, the rolled power is
+	  applied to that spot's frenzy bar regardless of catch outcome. On fill, a
+	  different random sibling is selected to enter
 	  `Frenzy`; every sibling's bar is reset to 0.
 	- The frenzied spot scales its tick interval (2× faster) and its catch
 	  chance (2×) using multipliers from `FishingShared`. After the shared
@@ -467,8 +470,10 @@ function FishingSpot:GetEffectiveInterval(stats: FishingStats): number
 end
 
 --[=[
-	Applies one fishing tick: rolls a catch (with skill+frenzy scaling) and, if
-	no spot in the group is frenzied, advances this spot's frenzy bar.
+	Applies one fishing tick: rolls catch power, opposes it against the spot's
+	`CatchDifficulty` to derive catch chance (×`FrenzyCatchMultiplier` when
+	frenzied, clamped to 1), and — if no spot in the group is frenzied — adds the
+	rolled power to this spot's frenzy bar.
 	@within FishingSpot
 	@param player Player
 	@param stats FishingStats -- The rod stats in effect for this tick.
@@ -476,7 +481,9 @@ end
 function FishingSpot:OnTick(player: Player, stats: FishingStats)
 	local def = self.Def
 	local fishingLevel = SkillServer.GetSkills(player).Fishing.Level
-	local catchChance = SkillShared.Fishing.GetEffectiveCatchChance(stats, fishingLevel)
+	local minPower, maxPower = SkillShared.Fishing.GetEffectiveCatchPower(stats, fishingLevel)
+	local rolled = self.Random:NextNumber(minPower, maxPower)
+	local catchChance = SkillShared.Fishing.GetCatchChance(rolled, def.CatchDifficulty)
 	if self.State == "Frenzy" then
 		catchChance = math.min(catchChance * FishingShared.FrenzyCatchMultiplier, 1)
 	end
@@ -494,7 +501,7 @@ function FishingSpot:OnTick(player: Player, stats: FishingStats)
 	end
 
 	if self.State == "Normal" then
-		self.FrenzyProgress += 1 / def.FrenzyHealth
+		self.FrenzyProgress += rolled / def.FrenzyHealth
 		if self.FrenzyProgress >= 1 then
 			self:TriggerFrenzyMigration()
 		else

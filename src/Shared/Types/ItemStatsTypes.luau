@@ -50,11 +50,11 @@ export type WoodcuttingStats = {
 	@interface FishingStats
 	@within ItemStatsTypes
 	@field Interval number -- Seconds between successive catch rolls. Each fishing spot tick is one roll; during a spot's `Frenzy` state the effective interval is scaled by the spot's frenzy interval multiplier.
-	@field CatchChance number -- Base probability (0..1) of a successful catch on each tick. Scaled by the player's Fishing level via `SkillShared.Fishing.GetEffectiveCatchChance` and by the spot's frenzy catch multiplier when frenzied.
+	@field CatchPower PowerRange -- Per-tick power range. One value is rolled per tick and used for two purposes: opposed against the spot's `CatchDifficulty` to derive catch chance via `rolled / (rolled + difficulty)`, and applied as damage to the spot's frenzy bar.
 ]=]
 export type FishingStats = {
 	Interval: number,
-	CatchChance: number,
+	CatchPower: PowerRange,
 }
 
 --[=[

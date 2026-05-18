@@ -73,8 +73,8 @@ local Defs = {
 		Requirements = {
 			Requirements.SkillLevel("Woodcutting", 1),
 		},
-		ProgressHealth = 5,
-		CutHealth = 1,
+		ProgressHealth = 30,
+		CutHealth = 600,
 		ExperiencePerProgress = 10,
 		Drops = "LogPoplar",
 	},

@@ -51,7 +51,8 @@ export type Drops = string | { DropEntry }
 	@field Name string -- Human-readable name shown on the proximity prompt.
 	@field Requirements {Requirement} -- Fishing-attempt gates. Auto-prepended.
 	@field ExperiencePerCatch number -- Fishing experience awarded per successful catch.
-	@field FrenzyHealth number -- Ticks of fishing required to fill this spot's frenzy bar while no spot in the group is currently frenzied.
+	@field CatchDifficulty number -- Opposed against the rod's rolled catch power to derive per-tick catch chance via `power / (power + difficulty)`. Higher = harder.
+	@field FrenzyHealth number -- HP drained from this spot's frenzy bar while no spot in the group is currently frenzied. Each tick deals `power` damage rolled from the rod's effective `CatchPower`.
 	@field Drops Drops -- What item is granted on a successful catch.
 ]=]
 export type FishingSpotDef = {
@@ -59,6 +60,7 @@ export type FishingSpotDef = {
 	Name: string,
 	Requirements: { Requirements.Requirement },
 	ExperiencePerCatch: number,
+	CatchDifficulty: number,
 	FrenzyHealth: number,
 	Drops: Drops,
 }
@@ -70,7 +72,8 @@ local Defs = {
 		Name = "Fishing Spot",
 		Requirements = {},
 		ExperiencePerCatch = 15,
-		FrenzyHealth = 5,
+		CatchDifficulty = 10,
+		FrenzyHealth = 600,
 		Drops = {
 			{ Kind = "FishCommon", Weight = 4 },
 			{ Kind = "Junk", Weight = 1 },

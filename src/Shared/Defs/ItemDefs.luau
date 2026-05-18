@@ -67,7 +67,7 @@ local Defs = {
 		Stats = {
 			Mining = {
 				Interval = 1.75,
-				Power = { Min = 0.9, Max = 1.1 },
+				Power = { Min = 5, Max = 10 },
 			},
 		},
 	},
@@ -79,7 +79,7 @@ local Defs = {
 		Stats = {
 			Woodcutting = {
 				Interval = 1.75,
-				Power = { Min = 0.9, Max = 1.1 },
+				Power = { Min = 5, Max = 10 },
 			},
 		},
 	},
@@ -91,7 +91,7 @@ local Defs = {
 		Stats = {
 			Fishing = {
 				Interval = 6,
-				CatchChance = 0.25,
+				CatchPower = { Min = 5, Max = 10 },
 			},
 		},
 	},

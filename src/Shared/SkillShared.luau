@@ -65,22 +65,37 @@ end
 
 SkillShared.Fishing = {}
 
-local FISHING_CATCH_PER_LEVEL = 0.02
+local FISHING_CATCH_POWER_PER_LEVEL = 0.02
 
 --[=[
-	Returns the effective per-tick catch chance, given the rod's base
-	`FishingStats` and the player's current Fishing level. Each level adds
-	`FISHING_CATCH_PER_LEVEL` (currently 2%) on top of the rod's base chance,
-	clamped to 1.
-	@function Fishing.GetEffectiveCatchChance
+	Returns the effective `(min, max)` catch-power range a player rolls per tick,
+	given their base rod `FishingStats` and their current Fishing level. Each
+	level adds `FISHING_CATCH_POWER_PER_LEVEL` (currently 2%) on top of the rod's
+	base range. The rolled value is used both to derive catch chance (opposed
+	against the spot's `CatchDifficulty`) and to advance the spot's frenzy bar.
+	@function Fishing.GetEffectiveCatchPower
 	@within SkillShared
 	@param stats FishingStats
 	@param level number
-	@return number -- Effective catch chance, 0..1.
+	@return number -- Effective minimum catch power.
+	@return number -- Effective maximum catch power.
 ]=]
-function SkillShared.Fishing.GetEffectiveCatchChance(stats: FishingStats, level: number): number
-	local mult = 1 + level * FISHING_CATCH_PER_LEVEL
-	return math.min(stats.CatchChance * mult, 1)
+function SkillShared.Fishing.GetEffectiveCatchPower(stats: FishingStats, level: number): (number, number)
+	local mult = 1 + level * FISHING_CATCH_POWER_PER_LEVEL
+	return stats.CatchPower.Min * mult, stats.CatchPower.Max * mult
+end
+
+--[=[
+	Returns the catch chance for a single tick: `power / (power + difficulty)`.
+	An opposed-ratio formula — equal numbers give 50%, doubling power gives ~67%.
+	@function Fishing.GetCatchChance
+	@within SkillShared
+	@param power number -- Rolled catch power for this tick.
+	@param difficulty number -- The spot's `CatchDifficulty`.
+	@return number -- Catch chance, 0..1.
+]=]
+function SkillShared.Fishing.GetCatchChance(power: number, difficulty: number): number
+	return power / (power + difficulty)
 end
 
 return SkillShared

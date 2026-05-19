@@ -1,13 +1,13 @@
 ---
 name: upload-asset
-description: Upload a local asset file (audio, image) to Roblox via the Open Cloud API using rbxcloud, then write the resulting `rbxassetid://` into the appropriate Defs file. Trigger when the user runs `/upload-asset <type> <file> <DefsTable>.<Key>` or asks to upload an asset to Roblox.
+description: Upload a local asset file (audio, image) to Roblox via the Open Cloud Assets API, then write the resulting `rbxassetid://` into the appropriate Defs file. Trigger when the user runs `/upload-asset <type> <file> <DefsTable>.<Key>` or asks to upload an asset to Roblox.
 ---
 
 # upload-asset
 
 Upload one or more local assets to Roblox under the configured group and patch the new asset IDs into the appropriate `src/Shared/Defs/<Defs>.luau` file.
 
-The heavy lifting (rbxcloud submit + operation polling, env loading) lives in `scripts/upload-asset.sh`. This skill orchestrates: call the script, parse its output, edit the Defs file, run `check.sh`.
+The heavy lifting (multipart submit to `apis.roblox.com/assets/v1/assets`, operation polling, env loading) lives in `scripts/upload-asset.sh`. This skill orchestrates: call the script, parse its output, edit the Defs file, run `check.sh`.
 
 ## Invocation
 
@@ -54,8 +54,8 @@ Always insert as a plain string value: `<Key> = "rbxassetid://<id>",`. Users can
 
 ## Prereqs (one-time, fail fast if missing)
 
-- `rbxcloud` available on PATH (rokit-managed). If `./scripts/upload-asset.sh --help`-equivalent fails complaining about rbxcloud, tell the user to `rokit add Sleitnick/rbxcloud`.
-- `.env.ps1` (or `.env`) in the repo root with `RBXCLOUD_API_KEY` and `ROBLOX_GROUP_ID`. The script reads both.
+- `curl` available on PATH (ships with Git Bash on Windows, default on macOS/Linux).
+- `.env.ps1` (or `.env`) in the repo root with `ROBLOX_API_KEY` and `ROBLOX_GROUP_ID`. The script reads both.
 
 Don't re-check these before every call; just run the script and surface its error if env is missing.
 
@@ -63,9 +63,8 @@ Don't re-check these before every call; just run the script and surface its erro
 
 - **403 PERMISSION_DENIED / "User not authenticated":** API key issue. Don't retry. Tell the user to check the Creator Dashboard key: `asset:write` scope, the group listed under "Access Permissions", no IP restriction, and the underlying user has "Manage group assets" on the group.
 - **Moderation rejection:** the operation comes back `done: true` with an error. Surface verbatim; don't edit Defs.
-- **File too large:** Roblox enforces ~7 MB for audio, smaller for decals. Surface the error; suggest shrinking.
-- **Network failure mid-upload:** rbxcloud creates a new asset on each retry (no dedup). Ask before retrying — duplicates leak into the group.
-- **rbxcloud flag shape changed:** if the script errors on unknown flags, run `rbxcloud assets create --help` and `rbxcloud assets get-operation --help`, fix `scripts/upload-asset.sh`, don't silently guess.
+- **File too large:** Roblox enforces ~7 MB for audio, smaller for images. Surface the error; suggest shrinking.
+- **Network failure mid-upload:** Open Cloud creates a new asset on each retry (no dedup). Ask before retrying — duplicates leak into the group.
 
 ## Out of scope
 

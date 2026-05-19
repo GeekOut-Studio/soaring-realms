@@ -3,11 +3,13 @@ local UserInputService = game:GetService("UserInputService")
 
 local React = require(ReplicatedStorage.Packages.React)
 local Container = require(ReplicatedStorage.Shared.React.Common.Container)
+local Image = require(ReplicatedStorage.Shared.React.Common.Image)
 local Label = require(ReplicatedStorage.Shared.React.Common.Label)
 local ColorDefs = require(ReplicatedStorage.Shared.Defs.ColorDefs)
 local DragContext = require(ReplicatedStorage.Shared.React.DragContext)
 local DragOrTap = require(ReplicatedStorage.Shared.React.DragOrTap)
 local ItemDefs = require(ReplicatedStorage.Shared.Defs.ItemDefs)
+local ItemIcons = require(ReplicatedStorage.Shared.Defs.ItemIcons)
 local InventoryTypes = require(ReplicatedStorage.Shared.Types.InventoryTypes)
 local UseDropTargetHover = require(ReplicatedStorage.Shared.React.Hooks.UseDropTargetHover)
 
@@ -65,12 +67,16 @@ local function ItemSlot(props: {
 		end
 	end, { slotKey, onDrop } :: { any })
 
-	local text = ""
-	if item ~= nil then
-		local def = ItemDefs[item.Kind]
+	local def = if item ~= nil then ItemDefs[item.Kind] else nil
+	local iconEntry = if item ~= nil then ItemIcons[item.Kind] else nil
+	local iconImage = if iconEntry ~= nil then "rbxassetid://" .. iconEntry.ImageAssetId else nil
+
+	local fallbackText = ""
+	if item ~= nil and iconImage == nil then
 		local name = if def ~= nil then def.Name else item.Kind
-		text = if item.Count ~= nil then name .. "\n×" .. item.Count else name
+		fallbackText = if item.Count ~= nil then name .. "\n×" .. item.Count else name
 	end
+	local countText = if item ~= nil and item.Count ~= nil and iconImage ~= nil then "×" .. item.Count else nil
 
 	local canDrag = slotKey ~= nil and props.SourceContainer ~= nil and item ~= nil
 
@@ -138,14 +144,35 @@ local function ItemSlot(props: {
 			end,
 		},
 	}, {
-		ItemLabel = e(Label, {
-			Native = {
-				TextColor3 = ColorDefs.TextPrimary,
-				TextSize = 13,
-				TextWrapped = true,
-				Text = text,
-			},
-		}),
+		Icon = if iconImage ~= nil
+			then e(Image, {
+				Native = {
+					Image = iconImage,
+					ScaleType = Enum.ScaleType.Fit,
+				},
+			})
+			else nil,
+		ItemLabel = if iconImage == nil
+			then e(Label, {
+				Native = {
+					TextColor3 = ColorDefs.TextPrimary,
+					TextSize = 13,
+					TextWrapped = true,
+					Text = fallbackText,
+				},
+			})
+			else nil,
+		CountLabel = if countText ~= nil
+			then e(Label, {
+				Native = {
+					TextColor3 = ColorDefs.TextPrimary,
+					TextSize = 13,
+					TextXAlignment = Enum.TextXAlignment.Right,
+					TextYAlignment = Enum.TextYAlignment.Bottom,
+					Text = countText,
+				},
+			})
+			else nil,
 		Stroke = e("UIStroke", {
 			Color = isDropHovered:map(function(hovered)
 				return if hovered then ColorDefs.PanelBorder else ColorDefs.SlotBorder

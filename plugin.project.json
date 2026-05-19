@@ -1,0 +1,6 @@
+{
+  "name": "IconBaker",
+  "tree": {
+    "$path": "Plugins/IconBaker.server.luau"
+  }
+}
